@@ -1,53 +1,72 @@
-# Next.js & HeroUI Template
+# 💸 Stan Finance App
 
-This is a template for creating applications using Next.js 14 (app directory) and HeroUI (v2).
+**Stan Finance App** is a modern, secure, and visually polished personal finance tracker built using **Next.js**, **Firebase Authentication**, and **HeroUI**. The application is designed to help users manage and monitor their financial data in an intuitive and organized interface — including accounts, transactions, payables, and receivables.
 
-[Try it on CodeSandbox](https://githubbox.com/heroui-inc/heroui/next-app-template)
+---
 
-## Technologies Used
+## 🔐 Authentication
 
-- [Next.js 14](https://nextjs.org/docs/getting-started)
-- [HeroUI v2](https://heroui.com/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [Tailwind Variants](https://tailwind-variants.org)
-- [TypeScript](https://www.typescriptlang.org/)
-- [Framer Motion](https://www.framer.com/motion/)
-- [next-themes](https://github.com/pacocoursey/next-themes)
+- Supports **Google Sign-In** using Firebase.
+- Routes are protected — users are redirected to login if unauthenticated.
+- Auth state is persistent across sessions.
 
-## How to Use
+---
 
-### Use the template with create-next-app
+## 🧩 Features
 
-To create a new project based on this template using `create-next-app`, run the following command:
+- 📊 **Dashboard Overview** – Quickly see financial health and summary.
+- 🧾 **Transaction Logs** – Organized by date with clean presentation.
+- 💳 **Account Management** – View banks like SeaBank, PayMaya, GoTyme in a bento grid layout.
+- 💸 **Payables** – Track upcoming bills with amount, due date, and “Mark as Paid” actions.
+- 💰 **Receivables** – Monitor incoming payments and expected dates.
+- 🌗 **Dark Mode Support** – Toggle with a theme switch.
+- 🧼 **Simple, Responsive UI** – Designed with HeroUI and Tailwind.
 
-```bash
-npx create-next-app -e https://github.com/heroui-inc/next-app-template
-```
+---
 
-### Install dependencies
+## 🛠 Tech Stack
 
-You can use one of them `npm`, `yarn`, `pnpm`, `bun`, Example using `npm`:
+- **Next.js** – App framework for React
+- **React 18** – UI Library
+- **Firebase** – Auth (Google Login)
+- **HeroUI** – Component system for building clean interfaces
+- **Tailwind CSS** – Utility-first CSS framework
 
-```bash
-npm install
-```
+---
 
-### Run the development server
+## 🔒 Route Protection
 
-```bash
-npm run dev
-```
+All application routes are protected by authentication. Unauthorized users attempting to access the dashboard or any subpages are automatically redirected to the login page.
 
-### Setup pnpm (optional)
+---
 
-If you are using `pnpm`, you need to add the following code to your `.npmrc` file:
+## 🗂 Pages
 
-```bash
-public-hoist-pattern[]=*@heroui/*
-```
+- `/login` – Sign in with Google
+- `/dashboard` – Summary of balances and quick stats
+- `/transactions` – Chronological list of financial activity
+- `/accounts` – Account grid (e.g. PayMaya, SeaBank)
+- `/payables` – Expenses with due dates and payment status
+- `/receivables` – Income that is expected or pending
 
-After modifying the `.npmrc` file, you need to run `pnpm install` again to ensure that the dependencies are installed correctly.
+---
 
-## License
+## 🧱 Architecture
 
-Licensed under the [MIT license](https://github.com/heroui-inc/next-app-template/blob/main/LICENSE).
+The project follows a modular and component-based structure using modern React/Next.js patterns. All styles are utility-driven via Tailwind and HeroUI to maintain a consistent design system.
+
+---
+
+## ⚠️ Disclaimer
+
+This is a **private, personal-use project** and not intended for public or production deployment. No code or sensitive configuration is shared in this repository or documentation.
+
+---
+
+## 🙌 Credits
+
+- [HeroUI](https://heroui.com)
+- [Firebase Authentication](https://firebase.google.com)
+- [Next.js](https://nextjs.org)
+
+> Built by Stan as a personal finance tracker project ❤️
