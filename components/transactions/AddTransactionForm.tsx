@@ -1,60 +1,172 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
 import { Select, SelectItem } from "@heroui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  doc,
+  getDoc,
+  updateDoc,
+  Timestamp,
+} from "firebase/firestore";
 
 type Props = {
-  account_id: string;
   onSuccess?: () => void;
 };
 
-export function AddTransactionForm({ account_id, onSuccess }: Props) {
+export function AddTransactionForm({ onSuccess }: Props) {
   const { user } = useAuth();
-  const [amount, setAmount] = useState("");
+
+  const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+
   const [type, setType] = useState("income");
+  const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [dateIncurred, setDateIncurred] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
+  // 🔄 Fetch user-specific accounts from subcollection
+  useEffect(() => {
+    const loadAccounts = async () => {
+      if (!user) return;
 
-    const now = Timestamp.now();
+      const accountsRef = collection(db, "users", user.uid, "accounts");
+      const snapshot = await getDocs(accountsRef);
 
-    const data = {
-      account_id,
-      user_id: user.uid,
-      amount: parseFloat(amount),
-      type,
-      category,
-      description,
-      date_incurred: dateIncurred ? Timestamp.fromDate(new Date(dateIncurred)) : now,
-      created_at: now,
-      updated_at: now,
+      const accList = await Promise.all(snapshot.docs.map(async (docSnap) => {
+        const data = docSnap.data();
+        const docRef = docSnap.ref;
+
+        // ⚠️ Patch account if `amount` is missing
+        if (data.amount === undefined) {
+          await updateDoc(docRef, { amount: 0 });
+          data.amount = 0;
+        }
+
+        return {
+          id: docSnap.id,
+          name: data.name || "Unnamed Account",
+        };
+      }));
+
+      setAccounts(accList);
+      if (accList.length > 0) {
+        setSelectedAccountId(accList[0].id); // auto-select first account
+      }
     };
 
-    try {
-      await addDoc(collection(db, "transactions"), data);
-      setAmount("");
-      setType("income");
-      setCategory("");
-      setDescription("");
-      setDateIncurred("");
-      onSuccess?.();
-    } catch (error) {
-      console.error("Error adding transaction:", error);
-      alert("Error adding transaction.");
+    loadAccounts();
+  }, [user]);
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!user || !selectedAccountId) return;
+
+  const now = Timestamp.now();
+  const parsedAmount = parseFloat(amount);
+
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    alert("Please enter a valid amount greater than 0.");
+    return;
+  }
+  
+const selectedAccount = accounts.find((acc) => acc.id === selectedAccountId);
+const accountName = selectedAccount?.name || "Unnamed Account";
+const data = {
+  account_id: selectedAccountId,
+  account_name: accountName, // ✅ Include account name
+  user_id: user.uid,
+  amount: parsedAmount,
+  type,
+  category,
+  description,
+  date_incurred: dateIncurred ? Timestamp.fromDate(new Date(dateIncurred)) : now,
+  created_at: now,
+  updated_at: now,
+};
+
+  try {
+    // ✅ Add transaction to user's subcollection
+    await addDoc(collection(db, "users", user.uid, "transactions"), data);
+
+    // 💰 Update account balance
+    const accountRef = doc(db, "users", user.uid, "accounts", selectedAccountId);
+    const accountSnap = await getDoc(accountRef);
+
+    if (accountSnap.exists()) {
+      const accountData = accountSnap.data();
+      const currentBalance = typeof accountData.balance === "number" ? accountData.balance : 0;
+
+      const updatedBalance =
+        type === "income"
+          ? currentBalance + parsedAmount
+          : currentBalance - parsedAmount;
+
+      console.log(
+        `Updating account '${accountData.name}' balance from ${currentBalance} to ${updatedBalance}`
+      );
+
+      await updateDoc(accountRef, {
+        balance: updatedBalance,
+        updated_at: now,
+      });
+    } else {
+      console.warn("Account not found. Cannot update balance.");
     }
-  };
+
+    // ✅ Reset form
+    setType("income");
+    setAmount("");
+    setCategory("");
+    setDescription("");
+    setDateIncurred("");
+    setSelectedAccountId(accounts.length > 0 ? accounts[0].id : null);
+
+    onSuccess?.();
+  } catch (err) {
+    console.error("Error adding transaction:", err);
+    alert("An error occurred while adding the transaction.");
+  }
+};
+
+
+  if (!user) return <p>Loading user...</p>;
+  if (accounts.length === 0) return <p>No accounts found. Please create one first.</p>;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <Select
+        label="Account"
+        selectedKeys={selectedAccountId ? [selectedAccountId] : []}
+        onSelectionChange={(keys) => {
+          const selected = Array.from(keys)[0] as string;
+          setSelectedAccountId(selected);
+        }}
+      >
+        {accounts.map((acc) => (
+          <SelectItem key={acc.id}>{acc.name}</SelectItem>
+        ))}
+      </Select>
+
+      <Select
+        label="Type"
+        selectedKeys={[type]}
+        onSelectionChange={(keys) => {
+          const selected = Array.from(keys)[0] as string;
+          setType(selected);
+        }}
+      >
+        <SelectItem key="income">Income</SelectItem>
+        <SelectItem key="expense">Expense</SelectItem>
+      </Select>
+
       <Input
         type="number"
         placeholder="Amount"
@@ -63,18 +175,6 @@ export function AddTransactionForm({ account_id, onSuccess }: Props) {
         required
         step="0.01"
       />
-      
-      <Select
-        label="Type"
-        selectedKeys={[type]}
-        onSelectionChange={(keys) => {
-          const val = Array.from(keys)[0] as string;
-          setType(val);
-        }}
-      >
-        <SelectItem key="income">Income</SelectItem>
-        <SelectItem key="expense">Expense</SelectItem>
-      </Select>
 
       <Input
         type="text"

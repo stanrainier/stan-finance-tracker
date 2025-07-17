@@ -39,7 +39,7 @@ export default function AccountsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {accounts.map((account) => (
           <Card key={account.account_id} className="hover:shadow-md transition">
-            <CardBody className="flex items-center justify-between">
+            <CardBody className="flex justify-between">
               <div>
                 <p className="font-semibold">{account.name}</p>
                 <p className="text-sm text-muted-foreground">{account.type}</p>

@@ -1,90 +1,133 @@
-"use client";
+'use client';
 
-import { Card, CardBody } from "@heroui/card";
-import { FaArrowUp, FaArrowDown } from "react-icons/fa";
-import { HiArrowDownLeft } from "react-icons/hi2";
+import { useEffect, useState } from "react";
+import { AddTransactionForm } from "@/components/transactions/AddTransactionForm";
+import { Button } from "@heroui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  Timestamp,
+} from "firebase/firestore";
+import { FaArrowDown, FaArrowUp } from "react-icons/fa";
+import { Divider } from "@heroui/divider";
 
-export default function TransactionsPage() {
-  const transactionsByDate = {
-    "July 16": [
-      {
-        id: 1,
-        title: "Pay",
-        category: "Salary",
-        amount: 17000,
-        type: "income",
-        icon: <FaArrowUp size={16} className="text-white" />,
-        iconBg: "bg-green-500",
-      },
-      {
-        id: 2,
-        title: "Food",
-        category: "Food & Dining",
-        amount: -200,
-        type: "expense",
-        icon: <FaArrowDown size={16} className="text-white" />,
-        iconBg: "bg-red-500",
-      },
-      {
-        id: 3,
-        title: "basta",
-        category: "Shopping",
-        amount: -50,
-        type: "expense",
-        icon: <HiArrowDownLeft size={16} className="text-white" />,
-        iconBg: "bg-yellow-500",
-      },
-    ],
-    "July 15": [
-      {
-        id: 4,
-        title: "Snacks",
-        category: "Food & Dining",
-        amount: -75,
-        type: "expense",
-        icon: <FaArrowDown size={16} className="text-white" />,
-        iconBg: "bg-red-500",
-      },
-    ],
+type Transaction = {
+  id: string;
+  account_id: string;
+  user_id: string;
+  amount: number;
+  type: string;
+  category: string;
+  description: string;
+  date_incurred: Timestamp;
+  created_at: Timestamp;
+  account_name: string;
+};
+
+export default function Page() {
+  const { user } = useAuth();
+  const [showForm, setShowForm] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+const fetchTransactions = async () => {
+  if (!user) return;
+
+  setLoading(true);
+
+  const transactionsRef = collection(db, "users", user.uid, "transactions");
+  const q = query(transactionsRef, orderBy("date_incurred", "desc"));
+  const snapshot = await getDocs(q);
+
+  const list: Transaction[] = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as Transaction[];
+
+  setTransactions(list);
+  setLoading(false);
+};
+
+
+  useEffect(() => {
+    if (user) fetchTransactions();
+  }, [user]);
+
+  const handleSuccess = () => {
+    setShowForm(false);
+    fetchTransactions();
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Transactions</h1>
+    <main className="p-6 space-y-6">
+      <h1 className="text-2xl font-semibold">Transactions</h1>
 
-      {Object.entries(transactionsByDate).map(([date, transactions]) => (
-        <div key={date} className="space-y-3">
-          <h2 className="text-md font-medium text-muted-foreground">{date}</h2>
+      {!showForm && (
+        <Button color="primary" onClick={() => setShowForm(true)}>
+          Add Transaction
+        </Button>
+      )}
 
-          {transactions.map((tx) => (
-            <Card key={tx.id} className="shadow-sm">
-              <CardBody className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`${tx.iconBg} rounded-full p-2`}>
-                    {tx.icon}
-                  </div>
-                  <div>
-                    <p className="font-semibold">{tx.title}</p>
-                    <p className="text-sm text-muted-foreground">{tx.category}</p>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <p
-                    className={`font-bold ${
-                      tx.amount > 0 ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {tx.amount > 0
-                      ? `+ $${tx.amount.toFixed(2)}`
-                      : `- $${Math.abs(tx.amount).toFixed(2)}`}
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
-          ))}
+      {showForm && (
+        <div className="mt-4">
+          <AddTransactionForm onSuccess={handleSuccess} />
         </div>
-      ))}
-    </div>
+      )}
+    <Divider className="my-8" />
+    <section className="mt-8">
+      <h2 className="text-xl font-semibold mb-4">Your Transactions</h2>
+
+      {loading ? (
+        <p>Loading transactions...</p>
+      ) : transactions.length === 0 ? (
+        <p>No transactions found.</p>
+      ) : (
+        <ul className="space-y-4">
+          {transactions.map((txn) => (
+            <li
+              key={txn.id}
+              className={`p-4 border border-gray-300 rounded-lg shadow-sm flex justify-between items-center  ${
+                  txn.type === "income" ? "bg-green-100" : "bg-red-100"
+                }`}
+            >
+              <div>
+                <p className="font-semibold text-lg text-gray-900">{txn.account_name}</p>
+                <p className="text-sm font-medium  text-gray-900">{txn.category}</p>
+                <p className="text-sm text-gray-900">{txn.description}</p>
+                <p className="text-sm text-gray-900">
+                  {txn.date_incurred.toDate().toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 text-right">
+              <span className={`text-base font-bold  ${
+                  txn.type === "income" ? "text-green-500" : "text-red-500"
+                }`}>
+                {txn.type === "income" ? "+" : "-"}₱{txn.amount.toFixed(2)}
+              </span>
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  txn.type === "income" ? "bg-green-300" : "bg-red-300"
+                }`}
+              >
+                {txn.type === "income" ? (
+                  <FaArrowUp className="w-4 h-4 text-green-600" />
+                ) : (
+                  <FaArrowDown className="w-4 h-4 text-red-600" />
+                )}
+              </div>
+            </div>
+
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+
+    </main>
   );
 }
