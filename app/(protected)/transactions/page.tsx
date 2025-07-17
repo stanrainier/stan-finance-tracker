@@ -15,6 +15,10 @@ import {
 } from "firebase/firestore";
 import { FaArrowDown, FaArrowUp } from "react-icons/fa";
 import { Divider } from "@heroui/divider";
+import { CiBank } from "react-icons/ci";
+import { FaWallet } from "react-icons/fa6";
+import { RiCoinsFill } from "react-icons/ri";
+import { IoMdCash } from "react-icons/io";
 
 type Transaction = {
   id: string;
@@ -34,6 +38,13 @@ export default function Page() {
   const [showForm, setShowForm] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const accountTypeIcons: Record<string, JSX.Element> = {
+    Bank: <CiBank className="text-xl" />,
+    'E-wallet': <FaWallet className="text-xl" />,
+    Savings: <RiCoinsFill className="text-xl" />,
+    Cash: <IoMdCash className="text-xl" />,
+  };
 
 const fetchTransactions = async () => {
   if (!user) return;
@@ -91,37 +102,57 @@ const fetchTransactions = async () => {
           {transactions.map((txn) => (
             <li
               key={txn.id}
-              className={`p-4 border border-gray-300 rounded-lg shadow-sm flex justify-between items-center  ${
-                  txn.type === "income" ? "bg-green-100" : "bg-red-100"
-                }`}
+              className={`p-4 rounded-xl shadow-sm border flex justify-between items-start gap-4 transition-all ${
+                txn.type === "income" ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+              }`}
             >
-              <div>
-                <p className="font-semibold text-lg text-gray-900">{txn.account_name}</p>
-                <p className="text-sm font-medium  text-gray-900">{txn.category}</p>
-                <p className="text-sm text-gray-900">{txn.description}</p>
-                <p className="text-sm text-gray-900">
-                  {txn.date_incurred.toDate().toLocaleDateString()}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 text-right">
-              <span className={`text-base font-bold  ${
-                  txn.type === "income" ? "text-green-500" : "text-red-500"
-                }`}>
-                {txn.type === "income" ? "+" : "-"}₱{txn.amount.toFixed(2)}
-              </span>
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  txn.type === "income" ? "bg-green-300" : "bg-red-300"
-                }`}
-              >
-                {txn.type === "income" ? (
-                  <FaArrowUp className="w-4 h-4 text-green-600" />
-                ) : (
-                  <FaArrowDown className="w-4 h-4 text-red-600" />
-                )}
-              </div>
-            </div>
+              {/* Left side: icon + details */}
+              <div className="flex gap-4 items-center">
+                {/* Circular icon */}
+                <div className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-800 dark:bg-gray-700">
+                  {accountTypeIcons[txn.type] || (
+                    <IoMdCash className="text-xl text-white" />
+                  )}
+                </div>
 
+                {/* Transaction info */}
+                <div className="space-y-0.5 text-sm">
+                  <p className="font-semibold text-xl text-black">
+                    {txn.account_name}
+                  </p>
+                  <p className="text-black italic text-md">{txn.category}</p>
+                  <p className="text-black text-md">{txn.description}</p>
+                  <p className="text-xs text-black">
+                    {txn.date_incurred.toDate().toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+
+
+              {/* Right side: amount + arrow */}
+              <div className="flex flex-col items-end justify-center gap-2 text-right">
+                {/* Amount */}
+                <span
+                  className={`text-lg font-bold ${
+                    txn.type === "income" ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {txn.type === "income" ? "+" : "-"}₱{txn.amount.toFixed(2)}
+                </span>
+
+                {/* Icon bubble */}
+                <div
+                  className={`w-8 h-8 flex items-center justify-center rounded-full ${
+                    txn.type === "income" ? "bg-green-200" : "bg-red-200"
+                  }`}
+                >
+                  {txn.type === "income" ? (
+                    <FaArrowUp className="w-4 h-4 text-green-700" />
+                  ) : (
+                    <FaArrowDown className="w-4 h-4 text-red-700" />
+                  )}
+                </div>
+              </div>
             </li>
           ))}
         </ul>

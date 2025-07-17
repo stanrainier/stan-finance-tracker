@@ -13,8 +13,9 @@ type AddAccountFormProps = {
 export function AddAccountForm({ onSuccess }: AddAccountFormProps) {
   const { user } = useAuth();
   const [accountName, setAccountName] = useState("");
-  const [accountType, setAccountType] = useState<string | null>(null); // store selected value
+  const [accountType, setAccountType] = useState<string | null>(null);
   const [balance, setBalance] = useState("");
+  const [color, setColor] = useState("#3b82f6"); // Default Tailwind blue-500
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +25,7 @@ export function AddAccountForm({ onSuccess }: AddAccountFormProps) {
       name: accountName,
       type: accountType,
       balance: parseFloat(balance) || 0,
+      color: color,
       created_at: Timestamp.now(),
     };
 
@@ -32,6 +34,7 @@ export function AddAccountForm({ onSuccess }: AddAccountFormProps) {
       setAccountName("");
       setAccountType(null);
       setBalance("");
+      setColor("#3b82f6");
       onSuccess?.();
     } catch (error) {
       console.error("Error adding account:", error);
@@ -59,6 +62,7 @@ export function AddAccountForm({ onSuccess }: AddAccountFormProps) {
         placeholder="Select Account Type"
       >
         <SelectItem key="Bank">Bank</SelectItem>
+        <SelectItem key="Savings">Savings Account</SelectItem>
         <SelectItem key="E-wallet">E-wallet</SelectItem>
         <SelectItem key="Cash">Cash</SelectItem>
       </Select>
@@ -70,6 +74,21 @@ export function AddAccountForm({ onSuccess }: AddAccountFormProps) {
         onChange={(e) => setBalance(e.target.value)}
         step="0.01"
       />
+
+      {/* Color Picker */}
+      <div className="flex items-center gap-3">
+        <label htmlFor="color" className="text-sm text-muted-foreground">
+          Account Color:
+        </label>
+        <input
+          type="color"
+          id="color"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+          className="w-10 h-10 border-none p-0 bg-transparent cursor-pointer"
+        />
+        <span className="text-xs text-muted-foreground">{color}</span>
+      </div>
 
       <Button type="submit" color="primary">
         Add Account

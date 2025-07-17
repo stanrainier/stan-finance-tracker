@@ -19,7 +19,7 @@ export default function LoginLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <section className="flex flex-col gap-4 py-4 md:py-10 px-4 sm:px-8">
+    <section className="flex flex-col gap-4 py-4 md:py-10 px-4 sm:px-8 bg-gradient-to-br from-purple-600 via-yellow-500 to-cyan-500">
       <div className="w-full max-w-7xl mx-auto">{children}</div>
     </section>
   );

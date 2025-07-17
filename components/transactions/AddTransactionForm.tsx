@@ -16,6 +16,8 @@ import {
   Timestamp,
 } from "firebase/firestore";
 
+import { incomeCategories, expenseCategories } from "@/constants/categories";
+
 type Props = {
   onSuccess?: () => void;
 };
@@ -32,7 +34,6 @@ export function AddTransactionForm({ onSuccess }: Props) {
   const [description, setDescription] = useState("");
   const [dateIncurred, setDateIncurred] = useState("");
 
-  // 🔄 Fetch user-specific accounts from subcollection
   useEffect(() => {
     const loadAccounts = async () => {
       if (!user) return;
@@ -40,102 +41,99 @@ export function AddTransactionForm({ onSuccess }: Props) {
       const accountsRef = collection(db, "users", user.uid, "accounts");
       const snapshot = await getDocs(accountsRef);
 
-      const accList = await Promise.all(snapshot.docs.map(async (docSnap) => {
-        const data = docSnap.data();
-        const docRef = docSnap.ref;
+      const accList = await Promise.all(
+        snapshot.docs.map(async (docSnap) => {
+          const data = docSnap.data();
+          const docRef = docSnap.ref;
 
-        // ⚠️ Patch account if `amount` is missing
-        if (data.amount === undefined) {
-          await updateDoc(docRef, { amount: 0 });
-          data.amount = 0;
-        }
+          if (data.amount === undefined) {
+            await updateDoc(docRef, { amount: 0 });
+            data.amount = 0;
+          }
 
-        return {
-          id: docSnap.id,
-          name: data.name || "Unnamed Account",
-        };
-      }));
+          return {
+            id: docSnap.id,
+            name: data.name || "Unnamed Account",
+          };
+        })
+      );
 
       setAccounts(accList);
       if (accList.length > 0) {
-        setSelectedAccountId(accList[0].id); // auto-select first account
+        setSelectedAccountId(accList[0].id);
       }
     };
 
     loadAccounts();
   }, [user]);
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!user || !selectedAccountId) return;
+  // Reset category whenever type changes
+  useEffect(() => {
+    setCategory("");
+  }, [type]);
 
-  const now = Timestamp.now();
-  const parsedAmount = parseFloat(amount);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !selectedAccountId) return;
 
-  if (isNaN(parsedAmount) || parsedAmount <= 0) {
-    alert("Please enter a valid amount greater than 0.");
-    return;
-  }
-  
-const selectedAccount = accounts.find((acc) => acc.id === selectedAccountId);
-const accountName = selectedAccount?.name || "Unnamed Account";
-const data = {
-  account_id: selectedAccountId,
-  account_name: accountName, // ✅ Include account name
-  user_id: user.uid,
-  amount: parsedAmount,
-  type,
-  category,
-  description,
-  date_incurred: dateIncurred ? Timestamp.fromDate(new Date(dateIncurred)) : now,
-  created_at: now,
-  updated_at: now,
-};
+    const now = Timestamp.now();
+    const parsedAmount = parseFloat(amount);
 
-  try {
-    // ✅ Add transaction to user's subcollection
-    await addDoc(collection(db, "users", user.uid, "transactions"), data);
-
-    // 💰 Update account balance
-    const accountRef = doc(db, "users", user.uid, "accounts", selectedAccountId);
-    const accountSnap = await getDoc(accountRef);
-
-    if (accountSnap.exists()) {
-      const accountData = accountSnap.data();
-      const currentBalance = typeof accountData.balance === "number" ? accountData.balance : 0;
-
-      const updatedBalance =
-        type === "income"
-          ? currentBalance + parsedAmount
-          : currentBalance - parsedAmount;
-
-      console.log(
-        `Updating account '${accountData.name}' balance from ${currentBalance} to ${updatedBalance}`
-      );
-
-      await updateDoc(accountRef, {
-        balance: updatedBalance,
-        updated_at: now,
-      });
-    } else {
-      console.warn("Account not found. Cannot update balance.");
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      alert("Please enter a valid amount greater than 0.");
+      return;
     }
 
-    // ✅ Reset form
-    setType("income");
-    setAmount("");
-    setCategory("");
-    setDescription("");
-    setDateIncurred("");
-    setSelectedAccountId(accounts.length > 0 ? accounts[0].id : null);
+    const selectedAccount = accounts.find((acc) => acc.id === selectedAccountId);
+    const accountName = selectedAccount?.name || "Unnamed Account";
+    const data = {
+      account_id: selectedAccountId,
+      account_name: accountName,
+      user_id: user.uid,
+      amount: parsedAmount,
+      type,
+      category,
+      description,
+      date_incurred: dateIncurred ? Timestamp.fromDate(new Date(dateIncurred)) : now,
+      created_at: now,
+      updated_at: now,
+    };
 
-    onSuccess?.();
-  } catch (err) {
-    console.error("Error adding transaction:", err);
-    alert("An error occurred while adding the transaction.");
-  }
-};
+    try {
+      await addDoc(collection(db, "users", user.uid, "transactions"), data);
 
+      // Update account balance
+      const accountRef = doc(db, "users", user.uid, "accounts", selectedAccountId);
+      const accountSnap = await getDoc(accountRef);
+
+      if (accountSnap.exists()) {
+        const accountData = accountSnap.data();
+        const currentBalance =
+          typeof accountData.balance === "number" ? accountData.balance : 0;
+
+        const updatedBalance =
+          type === "income" ? currentBalance + parsedAmount : currentBalance - parsedAmount;
+
+        await updateDoc(accountRef, {
+          balance: updatedBalance,
+          updated_at: now,
+        });
+      }
+
+      // Reset form
+      setType("income");
+      setAmount("");
+      setCategory("");
+      setDescription("");
+      setDateIncurred("");
+      setSelectedAccountId(accounts.length > 0 ? accounts[0].id : null);
+
+      onSuccess?.();
+    } catch (err) {
+      console.error("Error adding transaction:", err);
+      alert("An error occurred while adding the transaction.");
+    }
+  };
 
   if (!user) return <p>Loading user...</p>;
   if (accounts.length === 0) return <p>No accounts found. Please create one first.</p>;
@@ -168,6 +166,11 @@ const data = {
       </Select>
 
       <Input
+       startContent={
+            <div className="pointer-events-none flex items-center">
+              <span className="text-default-400 text-small">₱</span>
+            </div>
+          }
         type="number"
         placeholder="Amount"
         value={amount}
@@ -176,13 +179,20 @@ const data = {
         step="0.01"
       />
 
-      <Input
-        type="text"
-        placeholder="Category"
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
+      {/* Category select using constants */}
+      <Select
+        label="Category"
+        selectedKeys={category ? [category] : []}
+        onSelectionChange={(keys) => {
+          const selected = Array.from(keys)[0] as string;
+          setCategory(selected);
+        }}
         required
-      />
+      >
+        {(type === "income" ? incomeCategories : expenseCategories).map((cat) => (
+          <SelectItem key={cat}>{cat}</SelectItem>
+        ))}
+      </Select>
 
       <Input
         type="text"

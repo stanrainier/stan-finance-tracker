@@ -24,11 +24,13 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
   return <>
           <Providers themeProps={{ attribute: "class", defaultTheme: "dark" }}>
             <Header />
-            <div className="relative flex flex-col h-screen">
-              <main className="container mx-auto max-w-7xl pt-16 px-6 flex-grow">
-                {children}
-              </main>
-            </div>
+         <div className="relative flex flex-col min-h-screen">
+            <main className="flex-grow w-full pt-16 px-4 sm:px-6 md:px-8">
+              {children}
+            </main>
+          </div>
+
+
             <Navbar />
 
           </Providers>
