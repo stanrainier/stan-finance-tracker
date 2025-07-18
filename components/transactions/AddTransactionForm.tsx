@@ -25,15 +25,16 @@ type Props = {
 export function AddTransactionForm({ onSuccess }: Props) {
   const { user } = useAuth();
 
-  const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
+  const [accounts, setAccounts] = useState<{ id: string; name: string; balance: number }[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [selectedAccountBalance, setSelectedAccountBalance] = useState<number>(0);
 
   const [type, setType] = useState("income");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [dateIncurred, setDateIncurred] = useState("");
-
+  const [errorAmount, setErrorAmount] = useState(false);
   useEffect(() => {
     const loadAccounts = async () => {
       if (!user) return;
@@ -51,9 +52,12 @@ export function AddTransactionForm({ onSuccess }: Props) {
             data.amount = 0;
           }
 
+          const balance = typeof data.balance === "number" ? data.balance : 0;
+
           return {
             id: docSnap.id,
             name: data.name || "Unnamed Account",
+            balance,
           };
         })
       );
@@ -61,13 +65,19 @@ export function AddTransactionForm({ onSuccess }: Props) {
       setAccounts(accList);
       if (accList.length > 0) {
         setSelectedAccountId(accList[0].id);
+        setSelectedAccountBalance(accList[0].balance);
       }
     };
 
     loadAccounts();
   }, [user]);
 
-  // Reset category whenever type changes
+  // Update balance display when account changes
+  useEffect(() => {
+    const selected = accounts.find((acc) => acc.id === selectedAccountId);
+    if (selected) setSelectedAccountBalance(selected.balance);
+  }, [selectedAccountId, accounts]);
+
   useEffect(() => {
     setCategory("");
   }, [type]);
@@ -80,7 +90,14 @@ export function AddTransactionForm({ onSuccess }: Props) {
     const parsedAmount = parseFloat(amount);
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
+
       alert("Please enter a valid amount greater than 0.");
+      return;
+    }
+
+    if (type === "expense" || type === "transfer" && parsedAmount > selectedAccountBalance) {
+      
+      alert("Expense amount exceeds the account balance.");
       return;
     }
 
@@ -102,7 +119,6 @@ export function AddTransactionForm({ onSuccess }: Props) {
     try {
       await addDoc(collection(db, "users", user.uid, "transactions"), data);
 
-      // Update account balance
       const accountRef = doc(db, "users", user.uid, "accounts", selectedAccountId);
       const accountSnap = await getDoc(accountRef);
 
@@ -120,7 +136,6 @@ export function AddTransactionForm({ onSuccess }: Props) {
         });
       }
 
-      // Reset form
       setType("income");
       setAmount("");
       setCategory("");
@@ -139,7 +154,11 @@ export function AddTransactionForm({ onSuccess }: Props) {
   if (accounts.length === 0) return <p>No accounts found. Please create one first.</p>;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">              
+      <h3 className="text-xl font-semibold">
+        Add New Transaction
+      </h3>
       <Select
         label="Account"
         selectedKeys={selectedAccountId ? [selectedAccountId] : []}
@@ -152,6 +171,11 @@ export function AddTransactionForm({ onSuccess }: Props) {
           <SelectItem key={acc.id}>{acc.name}</SelectItem>
         ))}
       </Select>
+
+      {/* Display current balance */}
+      <div className="text-sm text-muted-foreground italic">
+        Current Balance: ₱{selectedAccountBalance.toFixed(2)}
+      </div>
 
       <Select
         label="Type"
@@ -166,11 +190,11 @@ export function AddTransactionForm({ onSuccess }: Props) {
       </Select>
 
       <Input
-       startContent={
-            <div className="pointer-events-none flex items-center">
-              <span className="text-default-400 text-small">₱</span>
-            </div>
-          }
+        startContent={
+          <div className="pointer-events-none flex items-center">
+            <span className="text-default-400 text-small">₱</span>
+          </div>
+        }
         type="number"
         placeholder="Amount"
         value={amount}
@@ -179,7 +203,7 @@ export function AddTransactionForm({ onSuccess }: Props) {
         step="0.01"
       />
 
-      {/* Category select using constants */}
+
       <Select
         label="Category"
         selectedKeys={category ? [category] : []}

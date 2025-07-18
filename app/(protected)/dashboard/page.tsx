@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Divider } from "@heroui/divider";
 import { IoMdAdd } from "react-icons/io";
@@ -10,19 +10,22 @@ import { FiArrowDownLeft } from "react-icons/fi";
 import { FaArrowUp, FaArrowDown } from "react-icons/fa";
 import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
-// Removed import of Modal, ModalBody, ModalHeader, ModalFooter
 import { AddTransactionForm } from "@/components/transactions/AddTransactionForm";
+import { TransferFundsForm } from "@/components/transactions/TransferFundsForm";
+import { useRouter } from "next/navigation";
+import { TotalPayablesCard } from "@/components/totals/TotalPayablesCard";
+import { TotalReceivablesCard } from "@/components/totals/totalReceivablesCard";
 
 interface Transaction {
   id: string;
   amount: number;
-  type: "income" | "expense";
+  type: "income" | "expense" | "transfer";
   category?: string;
   description?: string;
   name?: string;
   date_incurred?: { toDate: () => Date };
+  created_at?: { toDate: () => Date };
   account_name: string;
-
 }
 
 interface Account {
@@ -37,6 +40,9 @@ export default function DashboardPage() {
   const [today, setToday] = useState("");
   const [name, setName] = useState<string | null>("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<"transaction" | "transfer">("transaction");
+
+  const router = useRouter();
 
   const calculateTotals = (data: Transaction[]) => {
     let income = 0;
@@ -62,7 +68,11 @@ export default function DashboardPage() {
       }).format(new Date())
     );
 
-    const txnSnapshot = await getDocs(collection(db, `users/${user.uid}/transactions`));
+    const txnQuery = query(
+      collection(db, `users/${user.uid}/transactions`),
+      orderBy("created_at", "desc")
+    );
+    const txnSnapshot = await getDocs(txnQuery);
     const txnData: Transaction[] = txnSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
@@ -84,20 +94,41 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  const getIconAndBg = (type: "income" | "expense") => {
-    return type === "income"
-      ? {
-          icon: <FaArrowUp size={16} className="text-white" />,
-          bg: "bg-green-500",
-        }
-      : {
-          icon: <FaArrowDown size={16} className="text-white" />,
-          bg: "bg-red-500",
-        };
+const getIconAndBg = (
+  type: "income" | "expense" | "transfer",
+  category?: string
+) => {
+  if (type === "income") {
+    return {
+      icon: <FaArrowUp size={16} className="text-white" />,
+      bg: "bg-green-500",
+    };
+  }
+
+  if (type === "expense") {
+    return {
+      icon: <FaArrowDown size={16} className="text-white" />,
+      bg: "bg-red-500",
+    };
+  }
+
+  // Transfer category check
+  if (type === "transfer" && category === "Transfer - Sender") {
+    return {
+      icon: <FiArrowDownLeft size={16} className="text-white" />,
+      bg: "bg-indigo-800",
+    };
+  }
+
+  return {
+    icon: <MdArrowOutward size={16} className="text-white" />,
+    bg: "bg-blue-500",
   };
+};
+
 
   return (
-    <div className="space-y-6 ">
+    <div className="space-y-6">
       <h1 className="text-4xl font-semibold">Dashboard</h1>
 
       <section>
@@ -106,7 +137,7 @@ export default function DashboardPage() {
       </section>
 
       <Divider className="my-8" />
-      {/* Balance */}
+
       <Card className="shadow-md">
         <CardBody>
           <p className="text-sm text-muted-foreground">Current Balance</p>
@@ -115,7 +146,7 @@ export default function DashboardPage() {
           </p>
         </CardBody>
       </Card>
-      {/* Summary Cards */}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card className="shadow-md">
           <CardBody className="flex items-center justify-between">
@@ -149,64 +180,91 @@ export default function DashboardPage() {
           </CardBody>
         </Card>
       </div>
-
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <TotalReceivablesCard/>
+              <TotalPayablesCard/>
+        </div>
 
       <Divider className="my-8" />
 
-      {/* Transactions Header */}
       <div className="flex justify-between items-center">
         <h2 className="font-semibold text-lg">Recent Transactions</h2>
-        <Button variant="light" size="sm" onClick={() => setIsModalOpen(true)}>
-          Add New
+        <Button variant="light" size="sm" onClick={() => router.push("/transactions")}>
+          View All Transactions
         </Button>
       </div>
 
-      {/* Recent Transactions List */}
-      <div className="space-y-3">
-        {transactions.slice(0, 5).map((tx) => {
-          const { icon, bg } = getIconAndBg(tx.type);
-          return (
-          <div
-            key={tx.id}
-            className={`shadow-sm border rounded-md p-4 flex justify-between items-start  ${tx.type === "income" ? "border-green-300" : "border-red-300"}`}
+<div className="space-y-3">
+  {transactions.slice(0, 5).map((tx) => {
+    const { icon, bg } = getIconAndBg(tx.type, tx.category);
+    return (
+      <div
+        key={tx.id}
+        className={`shadow-sm border rounded-md p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
+          tx.type === "income"
+            ? "border-green-300"
+            : tx.type === "expense"
+            ? "border-red-300"
+            : "border-blue-300"
+        }`}
+      >
+        {/* Left section (main info) */}
+        <div className="flex-1 w-full">
+          <p className="font-semibold text-lg sm:text-2xl">
+            {tx.account_name || tx.name || "Transaction"}
+          </p>
+          <p className="text-sm text-muted-foreground mb-2">
+            {tx.category || "-"}
+          </p>
+          <p className="font-semibold text-base sm:text-xl mb-2">
+            {tx.description || tx.name || "Transaction"}
+          </p>
+          <Divider className="my-2 sm:my-4" />
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            {tx.date_incurred?.toDate().toLocaleDateString() || "-"}
+          </p>
+        </div>
+
+        {/* Right section (amount + icon) */}
+        <div className="flex flex-row sm:flex-col items-center justify-between sm:items-end sm:justify-center gap-3 sm:gap-2 w-full sm:w-auto">
+          <p
+            className={`font-bold text-lg sm:text-2xl ${
+              tx.type === "income"
+                ? "text-green-600"
+                : tx.type === "expense"
+                ? "text-red-600"
+                : "text-blue-600"
+            }`}
           >
-            {/* Left section: date + description + category */}
-            <div>
-              <p className="font-semibold text-2xl ">{tx.account_name || tx.name || "Transaction"}</p>
-              <p className="text-sm text-muted-foreground mb-4">{tx.category || "-"}</p>
-              <p className="font-semibold text-xl mb-2">{tx.description || tx.name || "Transaction"}</p>
-              <Divider className="my-4"/>
-              <p className="text-sm text-muted-foreground mb-1">
-                {tx.date_incurred?.toDate().toLocaleDateString() || "-"}
-              </p>
-            </div>
-
-            {/* Right section: amount + icon */}
-            <div className="flex items-center gap-3 ">
-              <p className={`font-bold text-2xl ${tx.type === "income" ? "text-green-600" : "text-red-600"}`}>
-                {tx.type === "income" ? "+" : "-"}₱{Math.abs(tx.amount).toFixed(2)}
-              </p>
-              <div className={`${bg} rounded-full p-2`}>{icon}</div>
-            </div>
-          </div>
-          );
-        })}
+            {tx.type === "income"
+              ? "+"
+              : tx.type === "expense"
+              ? "-"
+              : "⇄"}
+            ₱{Math.abs(tx.amount).toFixed(2)}
+          </p>
+          <div className={`${bg} rounded-full p-2`}>{icon}</div>
+        </div>
       </div>
+    );
+  })}
+</div>
 
-      {/* Floating Action Button */}
+
       <Button
         isIconOnly
         size="lg"
         className="fixed bottom-20 right-6 rounded-full shadow-lg"
-        onClick={() => setIsModalOpen(true)}
+        onClick={() => {
+          setIsModalOpen(true);
+          setModalTab("transaction");
+        }}
       >
         <IoMdAdd size={24} />
       </Button>
 
-      {/* Custom Modal implemented with div */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm ">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="bg-default rounded-lg shadow-lg w-full max-w-md relative p-6">
             <button
               onClick={() => setIsModalOpen(false)}
@@ -216,13 +274,45 @@ export default function DashboardPage() {
             >
               ✕
             </button>
-            <h3 className="text-xl font-semibold mb-4">Add New Transaction</h3>
-            <AddTransactionForm
-              onSuccess={() => {
-                setIsModalOpen(false);
-                fetchDashboardData();
-              }}
-            />
+
+          <div className="flex justify-center mb-4">
+            <div className="flex gap-2">
+              <Button
+                variant={modalTab === "transaction" ? "solid" : "ghost"}
+                color="secondary"
+                size="md"
+                onClick={() => setModalTab("transaction")}
+              >
+                Transaction
+              </Button>
+              <Button
+                variant={modalTab === "transfer" ? "solid" : "ghost"}
+                color="secondary"
+                size="md"
+                onClick={() => setModalTab("transfer")}
+              >
+                Transfer
+              </Button>
+            </div>
+          </div>
+
+
+            {modalTab === "transaction" ? (
+              <AddTransactionForm
+                onSuccess={() => {
+                  setIsModalOpen(false);
+                  fetchDashboardData();
+                }}
+              />
+            ) : (
+              <TransferFundsForm
+                onSuccess={() => {
+                  setIsModalOpen(false);
+                  fetchDashboardData();
+                }}
+              />
+            )}
+
             <div className="mt-4 flex justify-end">
               <Button variant="ghost" onClick={() => setIsModalOpen(false)}>
                 Cancel
