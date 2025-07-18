@@ -95,11 +95,11 @@ export function AddTransactionForm({ onSuccess }: Props) {
       return;
     }
 
-    if (type === "expense" || type === "transfer" && parsedAmount > selectedAccountBalance) {
-      
+    if ((type === "expense" || type === "transfer") && parsedAmount > selectedAccountBalance) {
       alert("Expense amount exceeds the account balance.");
       return;
     }
+
 
     const selectedAccount = accounts.find((acc) => acc.id === selectedAccountId);
     const accountName = selectedAccount?.name || "Unnamed Account";
