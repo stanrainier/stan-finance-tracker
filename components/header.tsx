@@ -14,6 +14,7 @@ import {
 } from "@heroui/navbar";
 import { Button } from "@heroui/button";
 import { ThemeSwitch } from "./theme-switch";
+import { BiSolidBadgeDollar } from "react-icons/bi";
 
 export default function Header() {
   const [user, setUser] = useState<User | null>(null);
@@ -34,19 +35,31 @@ export default function Header() {
 
   return (
     <HeroUINavbar isBordered maxWidth="xl" className="mx-auto">
-      {/* Toggle for small screens */}
-      <NavbarContent className="sm:hidden" justify="start">
+      {/* Left side: Mobile menu toggle */}
+
+
+      <NavbarContent className="sm:hidden" justify="end">
+        <NavbarBrand>
+          <h1 className="text-base font-bold flex items-center">
+            <BiSolidBadgeDollar size={28} />
+            <span className="ml-2">tan&apos;s Finance Tracker</span>
+
+          </h1>
+        </NavbarBrand>
+      </NavbarContent>
+      {/* Right side: Brand on mobile */}
+      <NavbarContent className="sm:hidden" justify="end">
         <NavbarMenuToggle
           aria-label={menuOpen ? "Close menu" : "Open menu"}
           onClick={() => setMenuOpen((prev) => !prev)}
         />
       </NavbarContent>
-
-      {/* Brand logo */}
+      {/* Desktop brand on left */}
       <NavbarContent className="sm:flex grow justify-start hidden">
         <NavbarBrand>
-          <h1 className="text-xl font-bold tracking-wide">
-            Stan Finance App
+          <h1 className="text-xl font-bold flex items-center ml-4">
+            <BiSolidBadgeDollar size={40} />
+            <span className="ml-2">tan&apos;s Finance Tracker</span>
           </h1>
         </NavbarBrand>
       </NavbarContent>
@@ -77,12 +90,13 @@ export default function Header() {
         </NavbarItem>
       </NavbarContent>
 
-        {/* Mobile dropdown menu */}
-        {menuOpen && (
-          <NavbarMenu>
-            <NavbarMenuItem>
-              {user && (
-                <div className="flex items-center gap-3 py-2">
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <NavbarMenu>
+          <NavbarMenuItem>
+            {user && (
+              <div className="flex items-center justify-between w-full gap-3 py-2">
+                <div className="flex items-center gap-3">
                   <img
                     src={user.photoURL || ""}
                     alt="Profile"
@@ -90,20 +104,19 @@ export default function Header() {
                   />
                   <div className="text-base font-medium">{user.displayName}</div>
                 </div>
-              )}
-            </NavbarMenuItem>
+                <ThemeSwitch />
+              </div>
+            )}
+          </NavbarMenuItem>
 
-            <NavbarMenuItem>
-              <ThemeSwitch />
-            </NavbarMenuItem>
 
-            <NavbarMenuItem>
-              <Button onClick={logout} color="danger" variant="flat" fullWidth>
-                Logout
-              </Button>
-            </NavbarMenuItem>
-          </NavbarMenu>
-        )}
+          <NavbarMenuItem>
+            <Button onClick={logout} color="danger" variant="flat" fullWidth>
+              Logout
+            </Button>
+          </NavbarMenuItem>
+        </NavbarMenu>
+      )}
     </HeroUINavbar>
   );
 }
