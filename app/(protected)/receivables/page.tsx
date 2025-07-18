@@ -109,12 +109,13 @@ export default function ReceivablesPage() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Receivables</h1>
-        <Button onClick={() => setShowAddModal(true)}>Add Receivable</Button>
+        <Button color="primary" onClick={() => setShowAddModal(true)} className="shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform ">
+          + Add Receivable</Button>
       </div>
 
       <div className="grid gap-4">
         {receivables.map(r => (
-          <Card key={r.id} className="p-4 shadow-sm flex justify-between items-center">
+          <Card key={r.id} className="p-4 shadow-sm flex justify-between items-center shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform ">
             <div>
               <h2 className="text-lg font-semibold">{r.name}</h2>
               {r.description && <p className="text-sm text-muted-foreground">{r.description}</p>}

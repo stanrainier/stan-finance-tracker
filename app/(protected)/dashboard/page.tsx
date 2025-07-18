@@ -138,7 +138,7 @@ const getIconAndBg = (
 
       <Divider className="my-8" />
 
-      <Card className="shadow-md">
+      <Card className="shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform ">
         <CardBody>
           <p className="text-sm text-muted-foreground">Current Balance</p>
           <p className="text-green-600 font-bold text-2xl">
@@ -148,7 +148,7 @@ const getIconAndBg = (
       </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card className="shadow-md">
+        <Card className="shadow-md shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform ">
           <CardBody className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-green-100 rounded-full p-3">
@@ -164,7 +164,7 @@ const getIconAndBg = (
           </CardBody>
         </Card>
 
-        <Card className="shadow-md">
+        <Card className="shadow-md shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform ">
           <CardBody className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-red-100 rounded-full p-3">
@@ -200,7 +200,7 @@ const getIconAndBg = (
     return (
       <div
         key={tx.id}
-        className={`shadow-sm border rounded-md p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
+        className={` rounded-xl shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform  border rounded-md p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
           tx.type === "income"
             ? "border-green-300"
             : tx.type === "expense"

@@ -98,8 +98,8 @@ export default function AccountsPage() {
                     setSelectedAccount(account);
                     setEditModalOpen(true);
                   }}
-                  style={{ backgroundColor: account.color ?? "#cdcdcdbd" }}
-                  className="border rounded-lg p-4 hover:shadow-md transition cursor-pointer"
+                  style={{ backgroundColor: account.color ?? "#cdcdcdbd" } }
+                  className="p-6  rounded-xl shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform"
                 >
                   <div className="flex justify-between items-center text-white w-full">
                     <div className="flex items-center gap-3">

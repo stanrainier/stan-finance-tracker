@@ -34,7 +34,7 @@ export function TotalPayablesCard() {
   }, [user]);
 
   return (
-    <Card className="p-6 shadow-md ">
+    <Card className="p-6 shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform  ">
       <div className="flex items-center gap-3">
         <h2 className="text-lg font-semibold text-default-800">Total Payables</h2>
         {loading ? (

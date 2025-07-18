@@ -64,7 +64,9 @@ export default function PayablesPage() {
     <div className="p-6 max-w-3xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Payables</h1>
-        <Button onClick={() => setShowAddForm(true)}>+ Add Payable</Button>
+        <Button onClick={() => setShowAddForm(true)} color="primary" className="shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform ">
+          + Add Payable
+          </Button>
       </div>
 
       {showAddForm && (
@@ -83,7 +85,7 @@ export default function PayablesPage() {
         {payables.map((payable) => (
           <div
             key={payable.id}
-            className="p-4 cursor-pointer hover:bg-muted/30 transition border border-border rounded-lg mb-2"
+            className="p-4 shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform  cursor-pointer hover:bg-muted/30 transition border border-border rounded-lg mb-2"
             onClick={() =>
               setModalState({ isOpen: true, payable, activeTab: 'pay' })
             }
@@ -132,6 +134,7 @@ export default function PayablesPage() {
                 Make Payment
               </Button>
               <Button
+              
                 color="secondary"
                 variant="ghost"
                 onClick={() =>

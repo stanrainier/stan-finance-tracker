@@ -110,6 +110,7 @@ export default function Page() {
 
       <div className="flex gap-4 flex-wrap">
         <Button
+          className="shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 transform"
           color="primary"
           onClick={() => {
             setShowTransferModal(false);
@@ -120,7 +121,9 @@ export default function Page() {
           Add Transaction
         </Button>
 
+
         <Button
+          className="shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 transform"
           color="primary"
           onClick={() => {
             setShowFormModal(false);
@@ -189,18 +192,19 @@ export default function Page() {
             </p>
           </div>
         ) : isFiltered ? (
-          <div className="space-y-6">
+          <div className="space-y-6 ">
             {Object.entries(groupedByCategory).map(([category, txns]) => (
               <div key={category}>
+                 
                 <h3 className="text-lg font-semibold mb-2">{category}</h3>
-                <ul className="space-y-4">
+                <ul className="space-y-4 ">
                   {txns.map((txn) => renderTxn(txn))}
                 </ul>
               </div>
             ))}
           </div>
         ) : (
-          <ul className="space-y-4">
+          <ul className="space-y-4 ">
             {filteredTransactions.map((txn) => renderTxn(txn))}
           </ul>
         )}
@@ -212,11 +216,10 @@ export default function Page() {
     const isTransfer = txn.type === "transfer";
     const isSender = isTransfer && txn.category.toLowerCase().includes("sender");
     const isReceiver = isTransfer && txn.category.toLowerCase().includes("receiver");
-
     return (
       <li
         key={txn.id}
-        className={`p-4 rounded-xl shadow-sm border flex flex-col sm:flex-row justify-between sm:items-center gap-4 transition-all ${
+        className={`shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 transform p-4 rounded-xl shadow-sm border flex flex-col sm:flex-row justify-between sm:items-center gap-4 transition-all ${
           txn.type === "income"
             ? "bg-green-50 border-green-200"
             : txn.type === "expense"
