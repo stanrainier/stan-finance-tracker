@@ -10,6 +10,7 @@ import {
   doc,
   updateDoc,
   increment,
+  getDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,12 +30,38 @@ export function PayableAddForm({ onSuccess, payable }: PayableAddFormProps) {
   const { user } = useAuth();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
+    const fetchPayable = async () => {
+      if (user && payable?.id) {
+        setIsLoading(true);
+        try {
+          const payableRef = doc(db, `users/${user.uid}/payables`, payable.id);
+          const payableSnap = await getDoc(payableRef);
+          if (payableSnap.exists()) {
+            const data = payableSnap.data();
+            console.log('Fetched Payable:', data);
+            setCurrentBalance(data.balance ?? 0);
+          } else {
+            console.warn('Payable not found in Firestore');
+            setCurrentBalance(payable.balance); // fallback
+          }
+        } catch (err) {
+          console.error('Failed to fetch payable:', err);
+          setError('Failed to load payable data.');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
     if (payable) {
-      setAmount(''); // don't prefill balance anymore since we're adding
+      setAmount('');
+      fetchPayable();
     }
-  }, [payable]);
+  }, [payable, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,24 +74,24 @@ export function PayableAddForm({ onSuccess, payable }: PayableAddFormProps) {
 
     const inputAmount = parseFloat(amount);
 
-    if (isNaN(inputAmount)) {
+    if (isNaN(inputAmount) || inputAmount <= 0) {
       setError('Invalid amount');
       return;
     }
 
     try {
-      // Update payable balance using increment()
       const payableRef = doc(db, `users/${user.uid}/payables`, payable.id);
+
       await updateDoc(payableRef, {
         balance: increment(inputAmount),
       });
 
-      // Record this as a transaction
       await addDoc(collection(db, `users/${user.uid}/transactions`), {
         amount: inputAmount,
         type: 'payable',
         created_at: Timestamp.now(),
         payable_id: payable.id,
+        payable_name: payable.accountName,
       });
 
       setAmount('');
@@ -76,14 +103,30 @@ export function PayableAddForm({ onSuccess, payable }: PayableAddFormProps) {
     }
   };
 
+  const parsedAmount = parseFloat(amount);
+  const isValidAmount = !isNaN(parsedAmount) && parsedAmount > 0;
+  const baseBalance = currentBalance ?? payable?.balance ?? 0;
+  const newBalance = baseBalance + (isValidAmount ? parsedAmount : 0);
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {payable && (
-        <div className="space-y-1">
-          <h1 className="text-xl font-semibold">{payable.accountName}</h1>
-          <h1 className="text-lg text-red-600">
-            ₱{Number(payable.balance).toFixed(2)}
+        <div className="text-center space-y-1">
+          <h1 className="text-xl font-bold text-gray-800">
+            {payable.accountName || 'Unnamed Payable'}
           </h1>
+          {isLoading ? (
+            <h2 className="text-lg text-gray-500 italic">Loading balance...</h2>
+          ) : (
+            <h2 className="text-2xl font-semibold text-red-600">
+              Current Balance: ₱{baseBalance.toFixed(2)}
+            </h2>
+          )}
+          {isValidAmount && !isLoading && (
+            <p className="text-green-600 text-sm font-medium">
+              Balance After Payment: ₱{newBalance.toFixed(2)}
+            </p>
+          )}
         </div>
       )}
 

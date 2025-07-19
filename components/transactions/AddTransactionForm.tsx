@@ -226,12 +226,13 @@ export function AddTransactionForm({ onSuccess }: Props) {
         required
       />
 
-      <Input
-        type="date"
-        value={dateIncurred}
-        onChange={(e) => setDateIncurred(e.target.value)}
-        required
-      />
+    <Input
+      type="datetime-local"
+      value={dateIncurred}
+      onChange={(e) => setDateIncurred(e.target.value)}
+      required
+    />
+
 
       <Button type="submit" color="primary">
         Add Transaction

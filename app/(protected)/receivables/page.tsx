@@ -9,6 +9,7 @@ import {
   updateDoc,
   Timestamp,
   getDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,6 +17,7 @@ import { Button } from '@heroui/button';
 import { Card } from '@heroui/card';
 import { Select, SelectItem } from '@heroui/select';
 import AddReceivableForm from '@/components/receivables/AddReceivableForm';
+import { TotalReceivablesCard } from '@/components/totals/totalReceivablesCard';
 
 type Account = {
   id: string;
@@ -38,7 +40,7 @@ export default function ReceivablesPage() {
   const [receivables, setReceivables] = useState<Receivable[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedReceivable, setSelectedReceivable] = useState<Receivable | null>(null);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
 
@@ -66,131 +68,171 @@ export default function ReceivablesPage() {
   const markAsPaid = async () => {
     if (!user || !selectedReceivable || !selectedAccountId) return;
 
-    try {
-      const accountRef = doc(db, `users/${user.uid}/accounts/${selectedAccountId}`);
-      const accountSnap = await getDoc(accountRef);
+    const accountRef = doc(db, `users/${user.uid}/accounts/${selectedAccountId}`);
+    const accountSnap = await getDoc(accountRef);
+    if (!accountSnap.exists()) return;
 
-      if (!accountSnap.exists()) {
-        throw new Error('Selected account not found');
-      }
+    const account = accountSnap.data() as Account;
+    const newBalance = account.balance + selectedReceivable.amount;
 
-      const account = accountSnap.data() as Account;
+    await updateDoc(accountRef, { balance: newBalance });
 
-      // Update account balance
-      await updateDoc(accountRef, {
-        balance: account.balance + selectedReceivable.amount,
-      });
+    await updateDoc(doc(db, `users/${user.uid}/receivables/${selectedReceivable.id}`), {
+      status: 'paid',
+      amount: 0,
+    });
 
-      // Add transaction
-      await addDoc(collection(db, `users/${user.uid}/transactions`), {
-        account_id: selectedAccountId,
-        type: 'income',
-        amount: selectedReceivable.amount,
-        description: `Receivable: ${selectedReceivable.name}`,
-        created_at: Timestamp.now(),
-      });
+    await addDoc(collection(db, `users/${user.uid}/transactions`), {
+      account_id: selectedAccountId,
+      type: 'income',
+      category: 'Receivable',
+      amount: selectedReceivable.amount,
+      description: `Receive Receivable: ${selectedReceivable.name}`,
+      created_at: Timestamp.now(),
+    });
 
-      // Mark receivable as paid
-      await updateDoc(doc(db, `users/${user.uid}/receivables/${selectedReceivable.id}`), {
-        status: 'paid',
-      });
+    setSelectedReceivable(null);
+    setSelectedAccountId('');
+    setShowPayModal(false);
+    await fetchReceivables();
+    await fetchAccounts();
+  };
 
-      setSelectedReceivable(null);
-      setSelectedAccountId(null);
-      setShowPayModal(false);
-      await fetchReceivables();
-      await fetchAccounts();
-    } catch (err) {
-      console.error('Error marking as paid:', err);
-    }
+  const deleteReceivable = async (id: string) => {
+    if (!user) return;
+    const confirmed = window.confirm('Are you sure you want to delete this receivable?');
+    if (!confirmed) return;
+
+    await deleteDoc(doc(db, `users/${user.uid}/receivables/${id}`));
+    await fetchReceivables();
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Receivables</h1>
-        <Button color="primary" onClick={() => setShowAddModal(true)} className="shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform ">
-          + Add Receivable</Button>
-      </div>
+    <>
+    <TotalReceivablesCard/>
+      <div className="px-4 py-6 space-y-6 sm:px-6 md:px-8 lg:px-10">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <h1 className="text-2xl font-bold">Receivables</h1>
+          <Button
+            color="primary"
+            onClick={() => setShowAddModal(true)}
+            className="shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform"
+          >
+            + Add Receivable
+          </Button>
+        </div>
 
-      <div className="grid gap-4">
-        {receivables.map(r => (
-          <Card key={r.id} className="p-4 shadow-sm flex justify-between items-center shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform ">
-            <div>
-              <h2 className="text-lg font-semibold">{r.name}</h2>
-              {r.description && <p className="text-sm text-muted-foreground">{r.description}</p>}
-              <p className="text-base font-bold text-green-600">₱{r.amount.toFixed(2)}</p>
-              {r.expectedDate && (
-                <p className="text-xs text-muted-foreground">
-                  Due: {new Date(r.expectedDate).toLocaleDateString()}
-                </p>
-              )}
+        {/* Receivable List */}
+        <div className="grid gap-4">
+          {receivables.map(r => (
+            <div
+              key={r.id}
+              className="p-4 rounded-lg shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 transform flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white dark:bg-neutral-900 transition-all duration-300"
+            >
+              <div className="flex-1 space-y-1">
+                <h2 className="text-lg font-semibold">{r.name}</h2>
+                {r.description && (
+                  <p className="text-sm text-muted-foreground">{r.description}</p>
+                )}
+                <p className="text-base font-bold text-green-600">₱{r.amount.toFixed(2)}</p>
+                {r.expectedDate && (
+                  <p className="text-xs text-muted-foreground">
+                    Due: {new Date(r.expectedDate).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-end w-full sm:w-auto">
+                <Button
+                  color="danger"
+                  variant="ghost"
+                  onClick={() => deleteReceivable(r.id)}
+                  className="w-full sm:w-auto"
+                >
+                  Delete
+                </Button>
+                <Button
+                  color="success"
+                  disabled={r.status === 'paid'}
+                  onClick={() => {
+                    setSelectedReceivable(r);
+                    setShowPayModal(true);
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  {r.status === 'paid' ? 'Received' : 'Mark as Paid'}
+                </Button>
+              </div>
             </div>
-            <div>
-              <Button
-                color="success"
-                disabled={r.status === 'paid'}
-                onClick={() => {
-                  setSelectedReceivable(r);
-                  setShowPayModal(true);
+          ))}
+        </div>
+
+        {/* Add Receivable Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+            <div className="bg-default rounded-xl shadow-md w-full max-w-md p-6">
+              <AddReceivableForm
+                onSuccess={() => {
+                  fetchReceivables();
+                  setShowAddModal(false);
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Pay Modal */}
+        {showPayModal && selectedReceivable && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+            <div className="bg-default rounded-xl shadow-md w-full max-w-md p-6 space-y-4">
+              <h2 className="text-lg font-semibold">
+                Mark "{selectedReceivable.name}" as Paid
+              </h2>
+
+              <Select
+                label="Select Account"
+                selectedKeys={selectedAccountId ? [selectedAccountId] : []}
+                onSelectionChange={(keys) => {
+                  const id = Array.from(keys)[0] as string;
+                  setSelectedAccountId(id);
+                }}
+                className="w-full"
+                placeholder="Select Account"
+                renderValue={(key) => {
+                  const acc = accounts.find((a: any) => a.id === key);
+                  return acc ? `${acc.name} (₱${acc.balance.toFixed(2)})` : 'Select Account';
                 }}
               >
-                {r.status === 'paid' ? 'Received' : 'Mark as Paid'}
-              </Button>
+                {accounts.map(account => (
+                  <SelectItem key={account.id} textValue={account.name}>
+                    <div className="flex flex-col">
+                      <span>{account.name}</span>
+                      <span className="text-sm text-default-500">
+                        ₱{account.balance.toFixed(2)}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </Select>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setShowPayModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  color="success"
+                  onClick={markAsPaid}
+                  disabled={!selectedAccountId}
+                >
+                  Confirm
+                </Button>
+              </div>
             </div>
-          </Card>
-        ))}
+          </div>
+        )}
       </div>
+    </>
 
-      {/* Add Receivable Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-default rounded-xl shadow-md w-full max-w-md p-6">
-            <AddReceivableForm
-              onSuccess={() => {
-                fetchReceivables();
-                setShowAddModal(false);
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Mark as Paid Modal */}
-      {showPayModal && selectedReceivable && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-default rounded-xl shadow-md w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-semibold">
-              Mark "{selectedReceivable.name}" as Paid
-            </h2>
-            <Select
-              label="Select Account"
-              value={selectedAccountId ?? ''}
-              onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
-                setSelectedAccountId(event.target.value)
-              }
-            >
-              {accounts.map(account => (
-                <SelectItem key={account.id}>
-                  {account.name} (₱{account.balance.toFixed(2)})
-                </SelectItem>
-              ))}
-            </Select>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowPayModal(false)}>
-                Cancel
-              </Button>
-              <Button
-                color="success"
-                onClick={markAsPaid}
-                disabled={!selectedAccountId}
-              >
-                Confirm
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
   );
 }

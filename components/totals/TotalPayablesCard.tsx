@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
-import { Card } from '@heroui/card';
+import { Card, CardBody } from '@heroui/card';
+import { FiArrowDownLeft } from 'react-icons/fi';
+import { HiOutlineCash } from 'react-icons/hi';
 
 export function TotalPayablesCard() {
   const { user } = useAuth();
@@ -34,17 +36,25 @@ export function TotalPayablesCard() {
   }, [user]);
 
   return (
-    <Card className="p-6 shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform  ">
-      <div className="flex items-center gap-3">
-        <h2 className="text-lg font-semibold text-default-800">Total Payables</h2>
+<Card className="shadow-md shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform">
+  <CardBody className="flex items-center justify-between">
+    <div className="flex items-center gap-3">
+      <div className="bg-red-100 rounded-full p-3">
+        <HiOutlineCash className="text-red-600" size={20} />
+      </div>
+      <div>
+        <p className="text-sm text-muted-foreground">Total Payables</p>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : (
-          <p className="text-2xl font-bold text-red-600">
-            ₱{totalPayables.toFixed(2)}
+          <p className="text-red-600 font-bold text-lg">
+            ₱{totalPayables.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </p>
         )}
       </div>
-    </Card>
+    </div>
+  </CardBody>
+</Card>
+
   );
 }

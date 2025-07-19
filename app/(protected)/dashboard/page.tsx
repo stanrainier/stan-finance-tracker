@@ -55,40 +55,53 @@ export default function DashboardPage() {
     setTotalExpense(Math.abs(expense));
   };
 
-  const fetchDashboardData = useCallback(async () => {
-    const user = auth.currentUser;
-    if (!user) return;
+const fetchDashboardData = useCallback(async () => {
+  const user = auth.currentUser;
+  if (!user) return;
 
-    setName(user.displayName ?? "");
-    setToday(
-      new Intl.DateTimeFormat("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      }).format(new Date())
-    );
+  setName(user.displayName ?? "");
+  setToday(
+    new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date())
+  );
 
-    const txnQuery = query(
-      collection(db, `users/${user.uid}/transactions`),
-      orderBy("created_at", "desc")
-    );
-    const txnSnapshot = await getDocs(txnQuery);
-    const txnData: Transaction[] = txnSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Transaction[];
+  const txnQuery = query(
+    collection(db, `users/${user.uid}/transactions`),
+    orderBy("created_at", "desc")
+  );
+  const txnSnapshot = await getDocs(txnQuery);
+  const txnData: Transaction[] = txnSnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as Transaction[];
 
-    setTransactions(txnData);
-    calculateTotals(txnData);
+  // ✅ Filter only last 24 hours
+  const recentOnly = txnData.filter((tx) => {
+    const txDate = tx.date_incurred?.toDate();
+    if (!txDate) return false;
 
-    const accSnapshot = await getDocs(collection(db, `users/${user.uid}/accounts`));
-    const total = accSnapshot.docs.reduce((sum, doc) => {
-      const data = doc.data() as Account;
-      return sum + (data.balance || 0);
-    }, 0);
+    const now = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
 
-    setAccountBalance(total);
-  }, []);
+    return txDate >= yesterday && txDate <= now;
+  });
+
+  setTransactions(recentOnly);
+  calculateTotals(recentOnly);
+
+  const accSnapshot = await getDocs(collection(db, `users/${user.uid}/accounts`));
+  const total = accSnapshot.docs.reduce((sum, doc) => {
+    const data = doc.data() as Account;
+    return sum + (data.balance || 0);
+  }, 0);
+
+  setAccountBalance(total);
+}, []);
+
 
   useEffect(() => {
     fetchDashboardData();
@@ -194,7 +207,7 @@ const getIconAndBg = (
         </Button>
       </div>
 
-<div className="space-y-3">
+<div className="space-y-3 pb-24">
   {transactions.slice(0, 5).map((tx) => {
     const { icon, bg } = getIconAndBg(tx.type, tx.category);
     return (
@@ -209,7 +222,7 @@ const getIconAndBg = (
         }`}
       >
         {/* Left section (main info) */}
-        <div className="flex-1 w-full">
+        <div className="flex-1 w-full ">
           <p className="font-semibold text-lg sm:text-2xl">
             {tx.account_name || tx.name || "Transaction"}
           </p>
@@ -221,7 +234,16 @@ const getIconAndBg = (
           </p>
           <Divider className="my-2 sm:my-4" />
           <p className="text-xs sm:text-sm text-muted-foreground">
-            {tx.date_incurred?.toDate().toLocaleDateString() || "-"}
+            {tx.date_incurred
+              ? new Intl.DateTimeFormat("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                }).format(tx.date_incurred.toDate())
+              : "-"}
           </p>
         </div>
 
@@ -254,7 +276,7 @@ const getIconAndBg = (
       <Button
         isIconOnly
         size="lg"
-        className="fixed bottom-20 right-6 rounded-full shadow-lg"
+        className="fixed bottom-20  shadow-md  right-6 rounded-full hover:scale-[1.03] shadow-xl  transition-all duration-1000 transform"
         onClick={() => {
           setIsModalOpen(true);
           setModalTab("transaction");

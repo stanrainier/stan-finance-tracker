@@ -15,9 +15,10 @@ import {
   orderBy,
   query,
   Timestamp,
+  deleteDoc,
+  doc
 } from "firebase/firestore";
 import {
-  FaArrowDown,
   FaArrowUp,
   FaExchangeAlt,
   FaPlus,
@@ -28,7 +29,7 @@ import { GoArrowUpRight } from "react-icons/go";
 import { CiBank } from "react-icons/ci";
 import { RiCoinsFill } from "react-icons/ri";
 import { IoMdCash } from "react-icons/io";
-import { FaCircleQuestion } from "react-icons/fa6";
+import { FaCircleQuestion, FaTrash } from "react-icons/fa6";
 
 type Transaction = {
   id: string;
@@ -41,6 +42,7 @@ type Transaction = {
   date_incurred: Timestamp;
   created_at: Timestamp;
   account_name: string;
+  payable_name: string;
 };
 
 export default function Page() {
@@ -87,55 +89,103 @@ export default function Page() {
     fetchTransactions();
   };
 
+  const handleDelete = async (id: string) => {
+    if (!user) return;
+    const confirmed = window.confirm("Are you sure you want to delete this transaction?");
+    if (!confirmed) return;
+
+    await deleteDoc(doc(db, `users/${user.uid}/transactions/${id}`));
+    fetchTransactions();
+  };
+
   const filteredTransactions = transactions.filter(
     (txn) =>
       (selectedAccount === "All" || txn.account_name === selectedAccount) &&
       (selectedType === "All" || txn.type === selectedType)
   );
 
-  const isFiltered = selectedAccount !== "All" || selectedType !== "All";
-
-  const groupedByCategory: Record<string, Transaction[]> = {};
-  if (isFiltered) {
-    filteredTransactions.forEach((txn) => {
-      const cat = txn.category || "Others";
-      if (!groupedByCategory[cat]) groupedByCategory[cat] = [];
-      groupedByCategory[cat].push(txn);
+  const formatDateKey = (timestamp: Timestamp) => {
+    const date = timestamp.toDate();
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
-  }
+  };
+
+  const groupedByDate: Record<string, Transaction[]> = {};
+  filteredTransactions
+    .sort((a, b) => {
+      const getDate = (entry: Transaction) => {
+        const ts = entry.date_incurred ?? entry.created_at;
+        return ts instanceof Timestamp ? ts.toDate() : new Date(0);
+      };
+
+      return getDate(b).getTime() - getDate(a).getTime();
+    })
+    .forEach((txn) => {
+      const ts = txn.date_incurred ?? txn.created_at;
+      const key = formatDateKey(ts);
+      if (!groupedByDate[key]) groupedByDate[key] = [];
+      groupedByDate[key].push(txn);
+    });
 
   return (
-    <main className="p-6 space-y-6">
+    <main className="p-4 sm:p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Transactions</h1>
 
-      <div className="flex gap-4 flex-wrap">
-        <Button
-          className="shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 transform"
-          color="primary"
-          onClick={() => {
-            setShowTransferModal(false);
-            setShowFormModal(true);
-          }}
-          startContent={<FaPlus />}
-        >
-          Add Transaction
-        </Button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 w-full mb-6">
+        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+          <Button
+            className="w-full sm:w-auto"
+            color="primary"
+            onClick={() => {
+              setShowTransferModal(false);
+              setShowFormModal(true);
+            }}
+            startContent={<FaPlus />}
+          >
+            Add Transaction
+          </Button>
 
+          <Button
+            className="w-full sm:w-auto"
+            color="primary"
+            onClick={() => {
+              setShowFormModal(false);
+              setShowTransferModal(true);
+            }}
+            startContent={<FaExchangeAlt />}
+          >
+            Transfer Funds
+          </Button>
+        </div>
 
-        <Button
-          className="shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 transform"
-          color="primary"
-          onClick={() => {
-            setShowFormModal(false);
-            setShowTransferModal(true);
-          }}
-          startContent={<FaExchangeAlt />}
-        >
-          Transfer Funds
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+          <Select
+            label="Filter by Account"
+            selectedKeys={[selectedAccount]}
+            onSelectionChange={(keys) => setSelectedAccount(Array.from(keys)[0] as string)}
+            className="w-full sm:w-[200px]"
+          >
+            {accountOptions.map((accountName) => (
+              <SelectItem key={accountName}>{accountName}</SelectItem>
+            ))}
+          </Select>
+
+          <Select
+            label="Filter by Type"
+            selectedKeys={[selectedType]}
+            onSelectionChange={(keys) => setSelectedType(Array.from(keys)[0] as string)}
+            className="w-full sm:w-[200px]"
+          >
+            {["All", "income", "expense", "transfer"].map((type) => (
+              <SelectItem key={type}>{type[0].toUpperCase() + type.slice(1)}</SelectItem>
+            ))}
+          </Select>
+        </div>
       </div>
 
-      {/* Modals */}
       <Modal isOpen={showFormModal} onClose={() => setShowFormModal(false)}>
         <ModalContent>
           <ModalBody className="p-4">
@@ -155,31 +205,7 @@ export default function Page() {
       <Divider className="my-8" />
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold mb-4">Your Transactions</h2>
-
-        <div className="flex flex-wrap gap-4 items-center justify-end mb-4">
-          <Select
-            label="Filter by Account"
-            selectedKeys={[selectedAccount]}
-            onSelectionChange={(keys) => setSelectedAccount(Array.from(keys)[0] as string)}
-            className="max-w-[200px]"
-          >
-            {accountOptions.map((accountName) => (
-              <SelectItem key={accountName}>{accountName}</SelectItem>
-            ))}
-          </Select>
-
-          <Select
-            label="Filter by Type"
-            selectedKeys={[selectedType]}
-            onSelectionChange={(keys) => setSelectedType(Array.from(keys)[0] as string)}
-            className="max-w-[200px]"
-          >
-            {["All", "income", "expense", "transfer"].map((type) => (
-              <SelectItem key={type}>{type[0].toUpperCase() + type.slice(1)}</SelectItem>
-            ))}
-          </Select>
-        </div>
+        <h2 className="text-xl font-semibold mb-8">Your Transactions</h2>
 
         {loading ? (
           <p>Loading transactions...</p>
@@ -191,77 +217,68 @@ export default function Page() {
               {(selectedAccount !== "All" || selectedType !== "All") && " with current filters"}.
             </p>
           </div>
-        ) : isFiltered ? (
-          <div className="space-y-6 ">
-            {Object.entries(groupedByCategory).map(([category, txns]) => (
-              <div key={category}>
-                 
-                <h3 className="text-lg font-semibold mb-2">{category}</h3>
-                <ul className="space-y-4 ">
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(groupedByDate).map(([date, txns]) => (
+              <div key={date}>
+                <h3 className="text-lg font-bold mb-2 border-b border-gray-300 pb-1">{date}</h3>
+                <ul className="space-y-4">
                   {txns.map((txn) => renderTxn(txn))}
                 </ul>
               </div>
             ))}
           </div>
-        ) : (
-          <ul className="space-y-4 ">
-            {filteredTransactions.map((txn) => renderTxn(txn))}
-          </ul>
         )}
       </section>
     </main>
   );
 
-  function renderTxn(txn: Transaction) {
-    const isTransfer = txn.type === "transfer";
-    const isSender = isTransfer && txn.category.toLowerCase().includes("sender");
-    const isReceiver = isTransfer && txn.category.toLowerCase().includes("receiver");
-    return (
-      <li
-        key={txn.id}
-        className={`shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 transform p-4 rounded-xl shadow-sm border flex flex-col sm:flex-row justify-between sm:items-center gap-4 transition-all ${
-          txn.type === "income"
-            ? "bg-green-50 border-green-200"
-            : txn.type === "expense"
-            ? "bg-red-50 border-red-200"
-            : "bg-blue-50 border-blue-200"
-        }`}
-      >
-        <div className="flex flex-1 gap-4 items-start">
-          <div className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-800">
-            {accountTypeIcons[txn.category] || <IoMdCash className="text-xl text-white" />}
-          </div>
-          <div className="space-y-0.5 text-sm">
-            <p className="font-semibold text-lg text-black">{txn.account_name}</p>
-            <p className="text-black italic text-md">{txn.category}</p>
-            <p className="text-black text-md">{txn.description}</p>
-            <p className="text-xs text-black">
-              {txn.date_incurred instanceof Timestamp
-                ? txn.date_incurred.toDate().toLocaleDateString()
-                : txn.created_at instanceof Timestamp
-                ? txn.created_at.toDate().toLocaleDateString()
-                : 'N/A'}
-            </p>
-          </div>
+function renderTxn(txn: Transaction) {
+  const isTransfer = txn.type === "transfer";
+  const isSender = isTransfer && txn.category.toLowerCase().includes("sender");
+  const isReceiver = isTransfer && txn.category.toLowerCase().includes("receiver");
+
+  return (
+    <li
+      key={txn.id}
+      className={`shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 transform p-4 rounded-xl shadow-sm border flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center ${
+        txn.type === "income"
+          ? "bg-green-50 border-green-200"
+          : txn.type === "expense"
+          ? "bg-red-50 border-red-200"
+          : "bg-blue-50 border-blue-200"
+      }`}
+    >
+      {/* Left content (Icon + details) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 flex-1">
+        {/* Category Icon */}
+        <div className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-800 mb-2 sm:mb-0">
+          {accountTypeIcons[txn.category] || <IoMdCash className="text-xl text-white" />}
         </div>
 
-        <div className="flex flex-col items-end justify-center gap-2 min-w-[100px] text-right">
-          <span
-            className={`text-lg font-bold ${
-              txn.type === "income"
-                ? "text-green-600"
-                : txn.type === "expense"
-                ? "text-red-600"
-                : "text-blue-600"
-            }`}
-          >
-            {txn.type === "income"
-              ? "+"
-              : txn.type === "expense"
-              ? "-"
-              : "→"}₱{txn.amount.toFixed(2)}
-          </span>
+        {/* Transaction Details */}
+        <div className="space-y-1 text-sm text-black">
+          <p className="font-semibold text-lg">{txn.account_name || txn.payable_name}</p>
+          <p className="italic text-md">{txn.category}</p>
+          <p className="text-md">{txn.description}</p>
+          <p className="text-xs text-black">
+            {(txn.date_incurred ?? txn.created_at)?.toDate().toLocaleString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              hour: "numeric",
+              minute: "numeric",
+              second: "numeric",
+              hour12: true,
+            })}
+          </p>
+        </div>
+      </div>
 
+      {/* Right content (icon + amount + delete) */}
+      <div className="flex flex-row sm:flex-col items-end sm:items-center justify-between gap-2 sm:gap-1 text-right sm:text-center">
+        {/* Arrow Icon + Amount */}
+        <div className="flex items-center gap-2">
           <div
             className={`w-8 h-8 flex items-center justify-center rounded-full ${
               txn.type === "income"
@@ -283,8 +300,42 @@ export default function Page() {
               <FaExchangeAlt className="w-4 h-4 text-blue-700" />
             )}
           </div>
+
+          <span
+            className={`text-lg font-bold ${
+              txn.type === "income"
+                ? "text-green-600"
+                : txn.type === "expense"
+                ? "text-red-600"
+                : "text-blue-600"
+            }`}
+          >
+            {txn.type === "income"
+              ? "+₱"
+              : txn.type === "expense"
+              ? "-₱"
+              : "₱"}
+            {txn.amount.toFixed(2)}
+          </span>
         </div>
-      </li>
-    );
-  }
+
+        {/* Delete Button */}
+ <div className="self-end sm:self-end">
+          <Button
+            isIconOnly
+            color="danger"
+            variant="ghost"
+            onClick={() => handleDelete(txn.id)}
+            title="Delete Transaction"
+            className="text-sm text-red-500 hover:text-red-800 mt-1 flex items-center gap-1 border border-red-500 px-2 py-1"
+          >
+            <FaTrash />
+          </Button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+
 }
