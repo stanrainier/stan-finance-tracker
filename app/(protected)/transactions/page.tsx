@@ -22,6 +22,8 @@ import {
   Timestamp,
   deleteDoc,
   doc,
+  where,
+  limit,
 } from "firebase/firestore";
 import { FaArrowUp, FaExchangeAlt, FaPlus, FaWallet } from "react-icons/fa";
 import { FiArrowDown, FiArrowDownLeft } from "react-icons/fi";
@@ -70,6 +72,8 @@ export default function Page() {
   const [showFormModal, setShowFormModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [daysLoaded, setDaysLoaded] = useState(2); // today + yesterday
+  const [cachedTransactions, setCachedTransactions] = useState<Transaction[]>([]); // ✅ Cache
+  const [hasFetched, setHasFetched] = useState(false); // ✅ Track if data loaded
 
   const accountTypeIcons: Record<string, JSX.Element> = {
     Bank: <CiBank className="text-xl text-white" />,
@@ -78,58 +82,88 @@ export default function Page() {
     Cash: <IoMdCash className="text-xl text-white" />,
   };
 
-  const fetchTransactions = async (extraDays = 0, customDate?: Date | null) => {
+  const fetchTransactions = async (extraDays = 0, customDate?: Date | null, forceRefresh = false) => {
     if (!user) return;
+    
+    // ✅ Use cache if available and not forcing refresh
+    if (!forceRefresh && hasFetched && cachedTransactions.length > 0 && !customDate && extraDays === 0) {
+      // Filter from cache
+      const baseDate = new Date();
+      const oldestDate = new Date(baseDate);
+      oldestDate.setDate(baseDate.getDate() - (daysLoaded - 1));
+      oldestDate.setHours(0, 0, 0, 0);
+      const oldestTimestamp = Timestamp.fromDate(oldestDate);
+      
+      const results = cachedTransactions.filter(
+        (t) => t.created_at.toMillis() >= oldestTimestamp.toMillis()
+      );
+      
+      const uniqueAccounts = Array.from(new Set(results.map((t) => t.account_name)));
+      setAccountOptions(["All", ...uniqueAccounts]);
+      setTransactions(results);
+      setLoading(false);
+      return;
+    }
+    
     if (extraDays > 0 || customDate) setLoadingMore(true);
     else setLoading(true);
 
-    let results: Transaction[] = [];
+    try {
+      const transactionsRef = collection(db, "users", user.uid, "transactions");
 
-    const transactionsRef = collection(db, "users", user.uid, "transactions");
-    const q = query(transactionsRef, orderBy("created_at", "desc"));
-    const snapshot = await getDocs(q);
-
-    const allTxns = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Transaction[];
-
-    if (customDate) {
-      const { start, end } = getDayRange(customDate);
-      results = allTxns.filter(
-        (t) =>
-          t.created_at.toMillis() >= start.toMillis() &&
-          t.created_at.toMillis() <= end.toMillis()
+      // ✅ Simplified: Just fetch recent transactions and filter client-side
+      const q = query(
+        transactionsRef,
+        orderBy("created_at", "desc"),
+        limit(100) // Fetch last 100 transactions
       );
-    } else {
-      const baseDate = new Date();
-      const ranges: Date[] = [];
-      for (let i = 0; i < daysLoaded + extraDays; i++) {
-        const d = new Date(baseDate);
-        d.setDate(baseDate.getDate() - i);
-        ranges.push(d);
-      }
+      
+      const snapshot = await getDocs(q);
+      let allResults = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Transaction[];
 
-      for (const day of ranges) {
-        const { start, end } = getDayRange(day);
-        const dayTxns = allTxns.filter(
+      // ✅ Cache the fetched data
+      setCachedTransactions(allResults);
+      setHasFetched(true);
+
+      // Filter based on customDate or daysLoaded
+      let results = allResults;
+      
+      if (customDate) {
+        const { start, end } = getDayRange(customDate);
+        results = allResults.filter(
           (t) =>
             t.created_at.toMillis() >= start.toMillis() &&
             t.created_at.toMillis() <= end.toMillis()
         );
-        results.push(...dayTxns);
+      } else {
+        // Filter to last N days
+        const baseDate = new Date();
+        const oldestDate = new Date(baseDate);
+        oldestDate.setDate(baseDate.getDate() - (daysLoaded + extraDays - 1));
+        oldestDate.setHours(0, 0, 0, 0);
+        const oldestTimestamp = Timestamp.fromDate(oldestDate);
+        
+        results = allResults.filter(
+          (t) => t.created_at.toMillis() >= oldestTimestamp.toMillis()
+        );
       }
+
+      const uniqueAccounts = Array.from(new Set(results.map((t) => t.account_name)));
+      setAccountOptions(["All", ...uniqueAccounts]);
+      setTransactions(results);
+
+      if (!customDate) setDaysLoaded((prev) => prev + extraDays);
+
+      setLoading(false);
+      setLoadingMore(false);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      setLoading(false);
+      setLoadingMore(false);
     }
-
-    const uniqueAccounts = Array.from(new Set(results.map((t) => t.account_name)));
-    setAccountOptions(["All", ...uniqueAccounts]);
-
-    setTransactions(results.sort((a, b) => b.created_at.toMillis() - a.created_at.toMillis()));
-
-    if (!customDate) setDaysLoaded((prev) => prev + extraDays);
-
-    setLoading(false);
-    setLoadingMore(false);
   };
 
   useEffect(() => {
@@ -153,11 +187,12 @@ export default function Page() {
   const handleSuccess = () => {
     setShowFormModal(false);
     setShowTransferModal(false);
+    // ✅ Force refresh after adding transaction
     if (selectedDate) {
       const jsDate = selectedDate.toDate(getLocalTimeZone());
-      fetchTransactions(0, jsDate);
+      fetchTransactions(0, jsDate, true);
     } else {
-      fetchTransactions();
+      fetchTransactions(0, null, true);
     }
   };
 
@@ -167,11 +202,12 @@ export default function Page() {
     if (!confirmed) return;
 
     await deleteDoc(doc(db, `users/${user.uid}/transactions/${id}`));
+    // ✅ Force refresh after deleting
     if (selectedDate) {
       const jsDate = selectedDate.toDate(getLocalTimeZone());
-      fetchTransactions(0, jsDate);
+      fetchTransactions(0, jsDate, true);
     } else {
-      fetchTransactions();
+      fetchTransactions(0, null, true);
     }
   };
 

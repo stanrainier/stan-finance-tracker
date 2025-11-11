@@ -35,9 +35,12 @@ export function AddTransactionForm({ onSuccess }: Props) {
   const [description, setDescription] = useState("");
   const [dateIncurred, setDateIncurred] = useState("");
   const [errorAmount, setErrorAmount] = useState(false);
+  
   useEffect(() => {
     const loadAccounts = async () => {
       if (!user) return;
+      // ✅ Skip if accounts already loaded
+      if (accounts.length > 0) return;
 
       const accountsRef = collection(db, "users", user.uid, "accounts");
       const snapshot = await getDocs(accountsRef);

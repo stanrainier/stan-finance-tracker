@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { onSnapshot, collection } from "firebase/firestore";
+import { getDocs, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@heroui/button";
@@ -20,6 +20,7 @@ export default function AccountsPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
   const [selectedType, setSelectedType] = useState("All");
+  const [hasFetched, setHasFetched] = useState(false); // ✅ Track if data loaded
 
   const accountTypeIcons: Record<string, JSX.Element> = {
     Bank: <CiBank className="text-xl" />,
@@ -30,21 +31,24 @@ export default function AccountsPage() {
 
   const accountTypes = ["All", "Bank", "E-wallet", "Savings", "Cash"];
 
-  useEffect(() => {
+  const fetchAccounts = async (forceRefresh = false) => {
     if (!user) return;
-
-    const unsubscribe = onSnapshot(
-      collection(db, "users", user.uid, "accounts"),
-      (snapshot) => {
-        const fetched = snapshot.docs.map((doc) => ({
-          account_id: doc.id,
-          ...doc.data(),
-        }));
-        setAccounts(fetched);
-      }
+    // ✅ Skip if already loaded and not forcing refresh
+    if (!forceRefresh && hasFetched) return;
+    
+    const snapshot = await getDocs(
+      collection(db, "users", user.uid, "accounts")
     );
+    const fetched = snapshot.docs.map((doc) => ({
+      account_id: doc.id,
+      ...doc.data(),
+    }));
+    setAccounts(fetched);
+    setHasFetched(true); // ✅ Mark as fetched
+  };
 
-    return () => unsubscribe();
+  useEffect(() => {
+    fetchAccounts();
   }, [user]);
 
   const filteredAccounts = selectedType === "All"
@@ -151,7 +155,10 @@ export default function AccountsPage() {
                 &times;
               </button>
             </div>
-            <AddAccountForm onSuccess={() => setOpen(false)} />
+            <AddAccountForm onSuccess={() => {
+              setOpen(false);
+              fetchAccounts(true); // ✅ Force refresh
+            }} />
           </div>
         </div>
       )}
@@ -174,6 +181,7 @@ export default function AccountsPage() {
               onClose={() => {
                 setEditModalOpen(false);
                 setSelectedAccount(null);
+                fetchAccounts(true); // ✅ Force refresh
               }}
             />
           </div>

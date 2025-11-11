@@ -39,6 +39,9 @@ export function TransferFundsForm({ onSuccess }: { onSuccess?: () => void }) {
   useEffect(() => {
     const fetchAccounts = async () => {
       if (!user) return;
+      // ✅ Skip if accounts already loaded
+      if (accounts.length > 0) return;
+      
       const q = query(collection(db, "users", user.uid, "accounts"));
       const snapshot = await getDocs(q);
       const list: Account[] = snapshot.docs.map((doc) => ({

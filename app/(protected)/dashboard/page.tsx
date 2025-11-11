@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, limit, where, Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Divider } from "@heroui/divider";
 import { IoMdAdd } from "react-icons/io";
@@ -41,6 +41,7 @@ export default function DashboardPage() {
   const [name, setName] = useState<string | null>("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<"transaction" | "transfer">("transaction");
+  const [hasFetched, setHasFetched] = useState(false); // ✅ Track if data loaded
 
   const router = useRouter();
 
@@ -55,9 +56,12 @@ export default function DashboardPage() {
     setTotalExpense(Math.abs(expense));
   };
 
-const fetchDashboardData = useCallback(async () => {
+const fetchDashboardData = useCallback(async (forceRefresh = false) => {
   const user = auth.currentUser;
   if (!user) return;
+
+  // ✅ Skip fetch if already loaded and not forcing refresh
+  if (!forceRefresh && hasFetched) return;
 
   setName(user.displayName ?? "");
   setToday(
@@ -68,9 +72,18 @@ const fetchDashboardData = useCallback(async () => {
     }).format(new Date())
   );
 
+  // ✅ Calculate timestamp for 24 hours ago
+  const now = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const yesterdayTimestamp = Timestamp.fromDate(yesterday);
+
+  // ✅ Query only last 24 hours at database level
   const txnQuery = query(
     collection(db, `users/${user.uid}/transactions`),
-    orderBy("created_at", "desc")
+    where("created_at", ">=", yesterdayTimestamp),
+    orderBy("created_at", "desc"),
+    limit(100) // Safety limit
   );
   const txnSnapshot = await getDocs(txnQuery);
   const txnData: Transaction[] = txnSnapshot.docs.map((doc) => ({
@@ -78,20 +91,8 @@ const fetchDashboardData = useCallback(async () => {
     ...doc.data(),
   })) as Transaction[];
 
-  // ✅ Filter only last 24 hours
-  const recentOnly = txnData.filter((tx) => {
-    const txDate = tx.date_incurred?.toDate();
-    if (!txDate) return false;
-
-    const now = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(now.getDate() - 1);
-
-    return txDate >= yesterday && txDate <= now;
-  });
-
-  setTransactions(recentOnly);
-  calculateTotals(recentOnly);
+  setTransactions(txnData);
+  calculateTotals(txnData);
 
   const accSnapshot = await getDocs(collection(db, `users/${user.uid}/accounts`));
   const total = accSnapshot.docs.reduce((sum, doc) => {
@@ -100,7 +101,8 @@ const fetchDashboardData = useCallback(async () => {
   }, 0);
 
   setAccountBalance(total);
-}, []);
+  setHasFetched(true); // ✅ Mark as fetched
+}, [hasFetched]);
 
 
   useEffect(() => {
@@ -323,14 +325,14 @@ const getIconAndBg = (
               <AddTransactionForm
                 onSuccess={() => {
                   setIsModalOpen(false);
-                  fetchDashboardData();
+                  fetchDashboardData(true); // ✅ Force refresh
                 }}
               />
             ) : (
               <TransferFundsForm
                 onSuccess={() => {
                   setIsModalOpen(false);
-                  fetchDashboardData();
+                  fetchDashboardData(true); // ✅ Force refresh
                 }}
               />
             )}
