@@ -64,6 +64,8 @@ export function AddTransactionForm({ onSuccess }: Props) {
           };
         })
       );
+      
+      accList.sort((a, b) => a.name.localeCompare(b.name));
 
       setAccounts(accList);
       if (accList.length > 0) {

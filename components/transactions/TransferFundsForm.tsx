@@ -48,6 +48,8 @@ export function TransferFundsForm({ onSuccess }: { onSuccess?: () => void }) {
         id: doc.id,
         ...(doc.data() as Omit<Account, "id">),
       }));
+      list.sort((a, b) => a.name.localeCompare(b.name));
+
       setAccounts(list);
     };
 
