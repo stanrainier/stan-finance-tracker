@@ -15,6 +15,7 @@ import { TransferFundsForm } from "@/components/transactions/TransferFundsForm";
 import { useRouter } from "next/navigation";
 import { TotalPayablesCard } from "@/components/totals/TotalPayablesCard";
 import { TotalReceivablesCard } from "@/components/totals/totalReceivablesCard";
+import GenerateReportButton from "@/components/reports/GenerateReportButton";
 
 interface Transaction {
   id: string;
@@ -144,11 +145,17 @@ const getIconAndBg = (
 
   return (
     <div className="space-y-6">
-      <h1 className="text-4xl font-semibold">Dashboard</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <h1 className="text-4xl font-semibold">Dashboard</h1>
+
+          <GenerateReportButton />
+      </div>
 
       <section>
         <h2 className="text-2xl font-bold">Hello there! {name}</h2>
         {today && <p className="text-muted-foreground">Today is {today}</p>}
+
+
       </section>
 
       <Divider className="my-8" />
