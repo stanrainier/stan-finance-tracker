@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { TotalPayablesCard } from "@/components/totals/TotalPayablesCard";
 import { TotalReceivablesCard } from "@/components/totals/totalReceivablesCard";
 import GenerateReportButton from "@/components/reports/GenerateReportButton";
+import { startOfMonth, endOfMonth } from "date-fns";
 
 interface Transaction {
   id: string;
@@ -35,14 +36,15 @@ interface Account {
 
 export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [totalIncome, setTotalIncome] = useState(0);
-  const [totalExpense, setTotalExpense] = useState(0);
   const [accountBalance, setAccountBalance] = useState(0);
   const [today, setToday] = useState("");
   const [name, setName] = useState<string | null>("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<"transaction" | "transfer">("transaction");
   const [hasFetched, setHasFetched] = useState(false); // ✅ Track if data loaded
+  const [monthlyIncome, setMonthlyIncome] = useState(0);
+  const [monthlyExpense, setMonthlyExpense] = useState(0);
+
 
   const router = useRouter();
 
@@ -53,18 +55,20 @@ export default function DashboardPage() {
       if (type === "income") income += amount;
       else if (type === "expense") expense += amount;
     });
-    setTotalIncome(income);
-    setTotalExpense(Math.abs(expense));
+    setMonthlyIncome(income);
+    setMonthlyExpense(Math.abs(expense));
   };
 
 const fetchDashboardData = useCallback(async (forceRefresh = false) => {
   const user = auth.currentUser;
   if (!user) return;
 
-  // ✅ Skip fetch if already loaded and not forcing refresh
+  // Skip fetch if already loaded and not forcing refresh
   if (!forceRefresh && hasFetched) return;
 
   setName(user.displayName ?? "");
+
+  // Set today's date
   setToday(
     new Intl.DateTimeFormat("en-US", {
       month: "long",
@@ -73,19 +77,19 @@ const fetchDashboardData = useCallback(async (forceRefresh = false) => {
     }).format(new Date())
   );
 
-  // ✅ Calculate timestamp for 24 hours ago
-  const now = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(now.getDate() - 1);
-  const yesterdayTimestamp = Timestamp.fromDate(yesterday);
+  // Calculate timestamp for start and end of current month
+  const start = Timestamp.fromDate(startOfMonth(new Date()));
+  const end = Timestamp.fromDate(endOfMonth(new Date()));
 
-  // ✅ Query only last 24 hours at database level
+  // Query transactions for current month
   const txnQuery = query(
     collection(db, `users/${user.uid}/transactions`),
-    where("created_at", ">=", yesterdayTimestamp),
+    where("created_at", ">=", start),
+    where("created_at", "<=", end),
     orderBy("created_at", "desc"),
-    limit(100) // Safety limit
+    limit(500) // safety limit
   );
+
   const txnSnapshot = await getDocs(txnQuery);
   const txnData: Transaction[] = txnSnapshot.docs.map((doc) => ({
     id: doc.id,
@@ -93,18 +97,29 @@ const fetchDashboardData = useCallback(async (forceRefresh = false) => {
   })) as Transaction[];
 
   setTransactions(txnData);
-  calculateTotals(txnData);
 
+  // Calculate totals for the month
+  const totalIncome = txnData
+    .filter((t) => t.type === "income")
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+  const totalExpense = txnData
+    .filter((t) => t.type === "expense")
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+  setMonthlyIncome(totalIncome);
+  setMonthlyExpense(totalExpense);
+
+  // Calculate total account balance
   const accSnapshot = await getDocs(collection(db, `users/${user.uid}/accounts`));
-  const total = accSnapshot.docs.reduce((sum, doc) => {
+  const totalBalance = accSnapshot.docs.reduce((sum, doc) => {
     const data = doc.data() as Account;
     return sum + (data.balance || 0);
   }, 0);
 
-  setAccountBalance(total);
-  setHasFetched(true); // ✅ Mark as fetched
+  setAccountBalance(totalBalance);
+  setHasFetched(true); // mark as fetched
 }, [hasFetched]);
-
 
   useEffect(() => {
     fetchDashboardData();
@@ -177,9 +192,9 @@ const getIconAndBg = (
                 <MdArrowOutward className="text-green-600" size={20} />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Income</p>
+                <p className="text-sm text-muted-foreground">Total Month Income</p>
                 <p className="text-green-600 font-bold text-lg">
-                  ₱{totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  ₱{monthlyIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
               </div>
             </div>
@@ -193,9 +208,9 @@ const getIconAndBg = (
                 <FiArrowDownLeft className="text-red-600" size={20} />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Expenses</p>
+                <p className="text-sm text-muted-foreground">Total Month Expenses</p>
                 <p className="text-red-600 font-bold text-lg">
-                  ₱{totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  ₱{monthlyExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
               </div>
             </div>

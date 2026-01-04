@@ -13,6 +13,23 @@ import { IoMdCash } from "react-icons/io";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { EditAccountForm } from "@/components/accounts/EditAccountForm";
 
+const ICONS = [
+  { name: "AUB", src: "/assets/aub.png" },
+  { name: "BDO", src: "/assets/bdo.png" },
+  { name: "BPI", src: "/assets/bpi.png" },
+  { name: "ChinaBank", src: "/assets/chinabank.png" },
+  { name: "CIMB", src: "/assets/cimb.png" },
+  { name: "EastWest", src: "/assets/eastwest.png" },
+  { name: "GCash", src: "/assets/gcash.png" },
+  { name: "GoTyme", src: "/assets/gotyme.png" },
+  { name: "MariBank", src: "/assets/maribank.webp" },
+  { name: "Maya", src: "/assets/maya.png" },
+  { name: "MetroBank", src: "/assets/metrobank.png" },
+  { name: "PNB", src: "/assets/pnb.png" },
+  { name: "RCBC", src: "/assets/rcbc.png" },
+  { name: "UnionBank", src: "/assets/unionbank.png" },
+];
+
 export default function AccountsPage() {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -20,7 +37,7 @@ export default function AccountsPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
   const [selectedType, setSelectedType] = useState("All");
-  const [hasFetched, setHasFetched] = useState(false); // ✅ Track if data loaded
+  const [hasFetched, setHasFetched] = useState(false);
 
   const accountTypeIcons: Record<string, JSX.Element> = {
     Bank: <CiBank className="text-xl" />,
@@ -33,9 +50,8 @@ export default function AccountsPage() {
 
   const fetchAccounts = async (forceRefresh = false) => {
     if (!user) return;
-    // ✅ Skip if already loaded and not forcing refresh
     if (!forceRefresh && hasFetched) return;
-    
+
     const snapshot = await getDocs(
       collection(db, "users", user.uid, "accounts")
     );
@@ -44,16 +60,17 @@ export default function AccountsPage() {
       ...doc.data(),
     }));
     setAccounts(fetched);
-    setHasFetched(true); // ✅ Mark as fetched
+    setHasFetched(true);
   };
 
   useEffect(() => {
     fetchAccounts();
   }, [user]);
 
-  const filteredAccounts = selectedType === "All"
-    ? accounts
-    : accounts.filter((a) => a.type === selectedType);
+  const filteredAccounts =
+    selectedType === "All"
+      ? accounts
+      : accounts.filter((a) => a.type === selectedType);
 
   const groupedAccounts: Record<string, any[]> = filteredAccounts.reduce(
     (acc, account) => {
@@ -66,7 +83,7 @@ export default function AccountsPage() {
   );
 
   return (
-    <div className="relative space-y-6">
+    <div className="relative space-y-6 p-4">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h1 className="text-xl font-semibold">Accounts</h1>
         <div className="w-52">
@@ -74,15 +91,13 @@ export default function AccountsPage() {
             label="Filter by type"
             size="sm"
             className="max-w-xs"
-            selectedKeys={[selectedType]}
+            selectedKeys={new Set([selectedType])}
             onSelectionChange={(keys) =>
               setSelectedType(Array.from(keys)[0] as string)
             }
           >
             {accountTypes.map((type) => (
-              <SelectItem key={type}>
-                {type}
-              </SelectItem>
+              <SelectItem key={type}>{type}</SelectItem>
             ))}
           </Select>
         </div>
@@ -102,14 +117,22 @@ export default function AccountsPage() {
                     setSelectedAccount(account);
                     setEditModalOpen(true);
                   }}
-                  style={{ backgroundColor: account.color ?? "#cdcdcdbd" } }
-                  className="p-6  rounded-xl shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 cursor-pointer transform"
+                  style={{ backgroundColor: account.color ?? "#cdcdcdbd" }}
+                  className="p-6 rounded-xl shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-300 cursor-pointer transform"
                 >
                   <div className="flex justify-between items-center text-white w-full">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 dark:bg-gray-800">
-                        {accountTypeIcons[account.type] || (
-                          <IoMdCash className="text-xl text-zinc-700 dark:text-zinc-200" />
+                      <div className="w-10 h-10 flex items-center justify-center rounded-full overflow-hidden">
+                        {account.icon ? (
+                          <img
+                            src={account.icon}
+                            alt={account.name}
+                            className="w-8 h-8 object-contain"
+                          />
+                        ) : (
+                          accountTypeIcons[account.type] || (
+                            <IoMdCash className="text-xl text-zinc-700 dark:text-zinc-200" />
+                          )
                         )}
                       </div>
                       <div>
@@ -126,6 +149,7 @@ export default function AccountsPage() {
             </div>
           </div>
         ))}
+
         {filteredAccounts.length === 0 && (
           <div className="flex flex-col items-center justify-center mt-10 gap-2 text-center text-muted-foreground italic">
             <p>No accounts found{selectedType !== "All" && " with selected type"}.</p>
@@ -142,7 +166,7 @@ export default function AccountsPage() {
         <FaPlus className="w-5 h-5" />
       </Button>
 
-      {/* Add Modal */}
+      {/* Add Account Modal */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="p-6 rounded-lg w-full max-w-md shadow-lg bg-default">
@@ -155,15 +179,17 @@ export default function AccountsPage() {
                 &times;
               </button>
             </div>
-            <AddAccountForm onSuccess={() => {
-              setOpen(false);
-              fetchAccounts(true); // ✅ Force refresh
-            }} />
+            <AddAccountForm
+              onSuccess={() => {
+                setOpen(false);
+                fetchAccounts(true);
+              }}
+            />
           </div>
         </div>
       )}
 
-      {/* Edit Modal */}
+      {/* Edit Account Modal */}
       {editModalOpen && selectedAccount && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="p-6 rounded-lg w-full max-w-md shadow-lg bg-default">
@@ -181,7 +207,7 @@ export default function AccountsPage() {
               onClose={() => {
                 setEditModalOpen(false);
                 setSelectedAccount(null);
-                fetchAccounts(true); // ✅ Force refresh
+                fetchAccounts(true);
               }}
             />
           </div>
