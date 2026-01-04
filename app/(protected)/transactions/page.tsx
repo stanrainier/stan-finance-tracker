@@ -33,6 +33,24 @@ import { RiCoinsFill } from "react-icons/ri";
 import { IoMdCash } from "react-icons/io";
 import { FaCircleQuestion, FaTrash } from "react-icons/fa6";
 
+// ✅ Add ICONS mapping for bank logos
+const ICONS: Record<string, string> = {
+  AUB: "/assets/aub.png",
+  BDO: "/assets/bdo.png",
+  BPI: "/assets/bpi.png",
+  ChinaBank: "/assets/chinabank.png",
+  CIMB: "/assets/cimb.png",
+  EastWest: "/assets/eastwest.png",
+  GCash: "/assets/gcash.png",
+  GoTyme: "/assets/gotyme.png",
+  MariBank: "/assets/maribank.webp",
+  Maya: "/assets/maya.png",
+  MetroBank: "/assets/metrobank.png",
+  PNB: "/assets/pnb.png",
+  RCBC: "/assets/rcbc.png",
+  UnionBank: "/assets/unionbank.png",
+};
+
 type Transaction = {
   id: string;
   account_id: string;
@@ -45,6 +63,7 @@ type Transaction = {
   created_at: Timestamp;
   account_name: string;
   payable_name: string;
+  icon?: string | null;
 };
 
 function getDayRange(date: Date) {
@@ -68,12 +87,12 @@ export default function Page() {
   const [accountOptions, setAccountOptions] = useState<string[]>([]);
   const [selectedAccount, setSelectedAccount] = useState("All");
   const [selectedType, setSelectedType] = useState("All");
-  const [selectedDate, setSelectedDate] = useState<DateValue | null>(null); // ✅ DateValue
+  const [selectedDate, setSelectedDate] = useState<DateValue | null>(null);
   const [showFormModal, setShowFormModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [daysLoaded, setDaysLoaded] = useState(2); // today + yesterday
-  const [cachedTransactions, setCachedTransactions] = useState<Transaction[]>([]); // ✅ Cache
-  const [hasFetched, setHasFetched] = useState(false); // ✅ Track if data loaded
+  const [daysLoaded, setDaysLoaded] = useState(2);
+  const [cachedTransactions, setCachedTransactions] = useState<Transaction[]>([]);
+  const [hasFetched, setHasFetched] = useState(false);
 
   const accountTypeIcons: Record<string, JSX.Element> = {
     Bank: <CiBank className="text-xl text-white" />,
@@ -84,68 +103,55 @@ export default function Page() {
 
   const fetchTransactions = async (extraDays = 0, customDate?: Date | null, forceRefresh = false) => {
     if (!user) return;
-    
-    // ✅ Use cache if available and not forcing refresh
+
     if (!forceRefresh && hasFetched && cachedTransactions.length > 0 && !customDate && extraDays === 0) {
-      // Filter from cache
       const baseDate = new Date();
       const oldestDate = new Date(baseDate);
       oldestDate.setDate(baseDate.getDate() - (daysLoaded - 1));
       oldestDate.setHours(0, 0, 0, 0);
       const oldestTimestamp = Timestamp.fromDate(oldestDate);
-      
+
       const results = cachedTransactions.filter(
         (t) => t.created_at.toMillis() >= oldestTimestamp.toMillis()
       );
-      
+
       const uniqueAccounts = Array.from(new Set(results.map((t) => t.account_name)));
       setAccountOptions(["All", ...uniqueAccounts]);
       setTransactions(results);
       setLoading(false);
       return;
     }
-    
+
     if (extraDays > 0 || customDate) setLoadingMore(true);
     else setLoading(true);
 
     try {
       const transactionsRef = collection(db, "users", user.uid, "transactions");
-
-      // ✅ Simplified: Just fetch recent transactions and filter client-side
-      const q = query(
-        transactionsRef,
-        orderBy("created_at", "desc"),
-        limit(100) // Fetch last 100 transactions
-      );
-      
+      const q = query(transactionsRef, orderBy("created_at", "desc"), limit(100));
       const snapshot = await getDocs(q);
+
       let allResults = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Transaction[];
 
-      // ✅ Cache the fetched data
       setCachedTransactions(allResults);
       setHasFetched(true);
 
-      // Filter based on customDate or daysLoaded
       let results = allResults;
-      
+
       if (customDate) {
         const { start, end } = getDayRange(customDate);
         results = allResults.filter(
-          (t) =>
-            t.created_at.toMillis() >= start.toMillis() &&
-            t.created_at.toMillis() <= end.toMillis()
+          (t) => t.created_at.toMillis() >= start.toMillis() && t.created_at.toMillis() <= end.toMillis()
         );
       } else {
-        // Filter to last N days
         const baseDate = new Date();
         const oldestDate = new Date(baseDate);
         oldestDate.setDate(baseDate.getDate() - (daysLoaded + extraDays - 1));
         oldestDate.setHours(0, 0, 0, 0);
         const oldestTimestamp = Timestamp.fromDate(oldestDate);
-        
+
         results = allResults.filter(
           (t) => t.created_at.toMillis() >= oldestTimestamp.toMillis()
         );
@@ -172,7 +178,6 @@ export default function Page() {
 
   useEffect(() => {
     if (selectedDate) {
-      // ✅ convert DateValue -> Date for filtering
       const jsDate = selectedDate.toDate(getLocalTimeZone());
       fetchTransactions(0, jsDate);
     } else {
@@ -187,7 +192,6 @@ export default function Page() {
   const handleSuccess = () => {
     setShowFormModal(false);
     setShowTransferModal(false);
-    // ✅ Force refresh after adding transaction
     if (selectedDate) {
       const jsDate = selectedDate.toDate(getLocalTimeZone());
       fetchTransactions(0, jsDate, true);
@@ -202,7 +206,6 @@ export default function Page() {
     if (!confirmed) return;
 
     await deleteDoc(doc(db, `users/${user.uid}/transactions/${id}`));
-    // ✅ Force refresh after deleting
     if (selectedDate) {
       const jsDate = selectedDate.toDate(getLocalTimeZone());
       fetchTransactions(0, jsDate, true);
@@ -219,36 +222,26 @@ export default function Page() {
 
   const formatDateKey = (timestamp: Timestamp) => {
     const date = timestamp.toDate();
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+    return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   };
 
   const groupedByDate: Record<string, Transaction[]> = {};
   filteredTransactions
     .sort((a, b) => {
-      const getDate = (entry: Transaction) => {
-        const ts = entry.date_incurred ?? entry.created_at;
-        return ts instanceof Timestamp ? ts.toDate() : new Date(0);
-      };
+      const getDate = (entry: Transaction) => (entry.date_incurred ?? entry.created_at).toDate();
       return getDate(b).getTime() - getDate(a).getTime();
     })
     .forEach((txn) => {
-      const ts = txn.date_incurred ?? txn.created_at;
-      const key = formatDateKey(ts);
+      const key = formatDateKey(txn.date_incurred ?? txn.created_at);
       if (!groupedByDate[key]) groupedByDate[key] = [];
       groupedByDate[key].push(txn);
     });
 
-  // Infinite scroll listener
   useEffect(() => {
     const handleScroll = () => {
       if (selectedDate) return;
       const scrolledToBottom =
-        Math.ceil(window.innerHeight + window.scrollY) >=
-        document.documentElement.scrollHeight;
+        Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight;
 
       if (scrolledToBottom && !loadingMore && !loading) {
         loadMore();
@@ -263,103 +256,45 @@ export default function Page() {
     <main className="p-4 sm:p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Transactions</h1>
 
+      {/* Buttons + Filters */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 w-full mb-6">
         <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          <Button
-            className="w-full sm:w-auto"
-            color="primary"
-            onClick={() => {
-              setShowTransferModal(false);
-              setShowFormModal(true);
-            }}
-            startContent={<FaPlus />}
-          >
-            Add Transaction
-          </Button>
-
-          <Button
-            className="w-full sm:w-auto"
-            color="primary"
-            onClick={() => {
-              setShowFormModal(false);
-              setShowTransferModal(true);
-            }}
-            startContent={<FaExchangeAlt />}
-          >
-            Transfer Funds
-          </Button>
+          <Button className="w-full sm:w-auto" color="primary" onClick={() => { setShowTransferModal(false); setShowFormModal(true); }} startContent={<FaPlus />}>Add Transaction</Button>
+          <Button className="w-full sm:w-auto" color="primary" onClick={() => { setShowFormModal(false); setShowTransferModal(true); }} startContent={<FaExchangeAlt />}>Transfer Funds</Button>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            <DatePicker
-              className="w-full sm:w-[200px]"
-              label="Select Date"
-              value={selectedDate}
-              onChange={setSelectedDate} // ✅ directly handles DateValue
-              startContent={
-                selectedDate ? (
-                  <Tooltip content="Clear Date" placement="left">
-                    <Button
-                      variant="light"
-                      size="sm"
-                      onClick={() => setSelectedDate(null)}
-                      isIconOnly
-                    >
-                      <AiOutlineClose className="w-5 h-5 text-gray-500" />
-                    </Button>    
-                  </Tooltip>
-
-                ) : null
-              }
-            />
-          <Select
-            label="Filter by Account"
-            selectedKeys={[selectedAccount]}
-            onSelectionChange={(keys) =>
-              setSelectedAccount(Array.from(keys)[0] as string)
-            }
+          <DatePicker
             className="w-full sm:w-[200px]"
-          >
+            label="Select Date"
+            value={selectedDate}
+            onChange={setSelectedDate}
+            startContent={selectedDate ? (
+              <Tooltip content="Clear Date" placement="left">
+                <Button variant="light" size="sm" onClick={() => setSelectedDate(null)} isIconOnly>
+                  <AiOutlineClose className="w-5 h-5 text-gray-500" />
+                </Button>
+              </Tooltip>
+            ) : null}
+          />
+          <Select label="Filter by Account" selectedKeys={[selectedAccount]} onSelectionChange={(keys) => setSelectedAccount(Array.from(keys)[0] as string)} className="w-full sm:w-[200px]">
             {accountOptions.map((accountName) => (
               <SelectItem key={accountName}>{accountName}</SelectItem>
             ))}
           </Select>
-
-          <Select
-            label="Filter by Type"
-            selectedKeys={[selectedType]}
-            onSelectionChange={(keys) =>
-              setSelectedType(Array.from(keys)[0] as string)
-            }
-            className="w-full sm:w-[200px]"
-          >
-            {["All", "income", "expense", "transfer"].map((type) => (
-              <SelectItem key={type}>
-                {type[0].toUpperCase() + type.slice(1)}
-              </SelectItem>
-            ))}
+          <Select label="Filter by Type" selectedKeys={[selectedType]} onSelectionChange={(keys) => setSelectedType(Array.from(keys)[0] as string)} className="w-full sm:w-[200px]">
+            {["All", "income", "expense", "transfer"].map((type) => <SelectItem key={type}>{type[0].toUpperCase() + type.slice(1)}</SelectItem>)}
           </Select>
         </div>
       </div>
 
-      <Modal isOpen={showFormModal} onClose={() => setShowFormModal(false)}>
-        <ModalContent>
-          <ModalBody className="p-4">
-            <AddTransactionForm onSuccess={handleSuccess} />
-          </ModalBody>
-        </ModalContent>
-      </Modal>
-
-      <Modal isOpen={showTransferModal} onClose={() => setShowTransferModal(false)}>
-        <ModalContent>
-          <ModalBody className="p-4">
-            <TransferFundsForm onSuccess={handleSuccess} />
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+      {/* Modals */}
+      <Modal isOpen={showFormModal} onClose={() => setShowFormModal(false)}><ModalContent><ModalBody className="p-4"><AddTransactionForm onSuccess={handleSuccess} /></ModalBody></ModalContent></Modal>
+      <Modal isOpen={showTransferModal} onClose={() => setShowTransferModal(false)}><ModalContent><ModalBody className="p-4"><TransferFundsForm onSuccess={handleSuccess} /></ModalBody></ModalContent></Modal>
 
       <Divider className="my-8" />
 
+      {/* Transactions list */}
       <section className="mt-8">
         <h2 className="text-xl font-semibold mb-8">Your Transactions</h2>
 
@@ -370,28 +305,18 @@ export default function Page() {
             <FaCircleQuestion size={42} />
             <p className="italic">
               No transactions found
-              {(selectedAccount !== "All" || selectedType !== "All") &&
-                " with current filters"}
-              .
+              {(selectedAccount !== "All" || selectedType !== "All") && " with current filters"}.
             </p>
           </div>
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedByDate).map(([date, txns]) => (
               <div key={date}>
-                <h3 className="text-lg font-bold mb-2 border-b border-gray-300 pb-1">
-                  {date}
-                </h3>
-                <ul className="space-y-4">
-                  {txns.map((txn) => renderTxn(txn))}
-                </ul>
+                <h3 className="text-lg font-bold mb-2 border-b border-gray-300 pb-1">{date}</h3>
+                <ul className="space-y-4">{txns.map((txn) => renderTxn(txn))}</ul>
               </div>
             ))}
-            {loadingMore && (
-              <div className="flex justify-center py-4 text-gray-500">
-                Loading more...
-              </div>
-            )}
+            {loadingMore && <div className="flex justify-center py-4 text-gray-500">Loading more...</div>}
           </div>
         )}
       </section>
@@ -401,88 +326,53 @@ export default function Page() {
   function renderTxn(txn: Transaction) {
     const isTransfer = txn.type === "transfer";
     const isSender = isTransfer && txn.category.toLowerCase().includes("sender");
-    const isReceiver =
-      isTransfer && txn.category.toLowerCase().includes("receiver");
+    const isReceiver = isTransfer && txn.category.toLowerCase().includes("receiver");
 
+    function getBankIcon(accountName: string | undefined, category: string): JSX.Element {
+      if (!accountName) return accountTypeIcons[category] || <IoMdCash className="text-xl text-white" />;
+
+      // Match the bank key (case-insensitive) from account name
+      const key = Object.keys(ICONS).find((k) =>
+        accountName.toLowerCase().includes(k.toLowerCase())
+      );
+
+      if (key) return <img src={ICONS[key]} alt={accountName} className=" rounded-full object-cover" />;
+
+      return accountTypeIcons[category] || <IoMdCash className="text-xl text-white" />;
+    }
     return (
       <li
         key={txn.id}
         className={`shadow-xl/30 hover:shadow-xl/80 hover:scale-[1.03] transition-all duration-1000 transform p-4 rounded-xl shadow-sm border flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center ${
-          txn.type === "income"
-            ? "bg-green-50 border-green-200"
-            : txn.type === "expense"
-            ? "bg-red-50 border-red-200"
-            : "bg-blue-50 border-blue-200"
+          txn.type === "income" ? "bg-green-50 border-green-200" : txn.type === "expense" ? "bg-red-50 border-red-200" : "bg-blue-50 border-blue-200"
         }`}
       >
         <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 flex-1">
-          <div className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-800 mb-2 sm:mb-0">
-            {accountTypeIcons[txn.category] || (
-              <IoMdCash className="text-xl text-white" />
-            )}
+          <div className="w-12 h-12 flex items-center justify-center  mb-2 sm:mb-0">
+            {getBankIcon(txn.account_name, txn.category)}
           </div>
           <div className="space-y-1 text-sm text-black">
-            <p className="font-semibold text-lg">
-              {txn.account_name || txn.payable_name}
-            </p>
+            <p className="font-semibold text-lg">{txn.account_name || txn.payable_name}</p>
             <p className="italic text-md">{txn.category}</p>
             <p className="text-md">{txn.description}</p>
-            <p className="text-xs text-black">
-              {(txn.date_incurred ?? txn.created_at)?.toDate().toLocaleString(
-                "en-US",
-                {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "numeric",
-                  second: "numeric",
-                  hour12: true,
-                }
-              )}
-            </p>
+            <p className="text-xs text-black">{(txn.date_incurred ?? txn.created_at)?.toDate().toLocaleString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hour12: true })}</p>
           </div>
         </div>
 
         <div className="flex flex-row sm:flex-col items-end sm:items-center justify-between gap-2 sm:gap-1 text-right sm:text-center">
           <div className="flex items-center gap-2">
-            <div
-              className={`w-8 h-8 flex items-center justify-center rounded-full ${
-                txn.type === "income"
-                  ? "bg-green-200"
-                  : txn.type === "expense"
-                  ? "bg-red-200"
-                  : "bg-blue-200"
-              }`}
-            >
-              {txn.type === "income" ? (
-                <FaArrowUp className="w-4 h-4 text-green-700" />
-              ) : txn.type === "expense" ? (
-                <FiArrowDown className="w-4 h-4 text-red-700" />
-              ) : isSender ? (
-                <GoArrowUpRight className="w-4 h-4 text-red-700" />
-              ) : isReceiver ? (
-                <FiArrowDownLeft className="w-4 h-4 text-green-700" />
-              ) : (
-                <FaExchangeAlt className="w-4 h-4 text-blue-700" />
-              )}
+            <div className={`w-8 h-8 flex items-center justify-center rounded-full ${
+              txn.type === "income" ? "bg-green-200" : txn.type === "expense" ? "bg-red-200" : "bg-blue-200"
+            }`}>
+              {txn.type === "income" ? <FaArrowUp className="w-4 h-4 text-green-700" /> :
+               txn.type === "expense" ? <FiArrowDown className="w-4 h-4 text-red-700" /> :
+               isSender ? <GoArrowUpRight className="w-4 h-4 text-red-700" /> :
+               isReceiver ? <FiArrowDownLeft className="w-4 h-4 text-green-700" /> :
+               <FaExchangeAlt className="w-4 h-4 text-blue-700" />}
             </div>
 
-            <span
-              className={`text-lg font-bold ${
-                txn.type === "income"
-                  ? "text-green-600"
-                  : txn.type === "expense"
-                  ? "text-red-600"
-                  : "text-blue-600"
-              }`}
-            >
-              {txn.type === "income"
-                ? "+₱"
-                : txn.type === "expense"
-                ? "-₱"
-                : "₱"}
-              {txn.amount.toFixed(2)}
+            <span className={`text-lg font-bold ${txn.type === "income" ? "text-green-600" : txn.type === "expense" ? "text-red-600" : "text-blue-600"}`}>
+              {txn.type === "income" ? "+₱" : txn.type === "expense" ? "-₱" : "₱"}{txn.amount.toFixed(2)}
             </span>
           </div>
 

@@ -34,6 +34,7 @@ interface Account {
   balance: number;
 }
 
+
 export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accountBalance, setAccountBalance] = useState(0);
@@ -124,6 +125,39 @@ const fetchDashboardData = useCallback(async (forceRefresh = false) => {
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
+
+const ICONS: Record<string, string> = {
+    AUB: "/assets/aub.png",
+    BDO: "/assets/bdo.png",
+    BPI: "/assets/bpi.png",
+    ChinaBank: "/assets/chinabank.png",
+    CIMB: "/assets/cimb.png",
+    EastWest: "/assets/eastwest.png",
+    GCash: "/assets/gcash.png",
+    GoTyme: "/assets/gotyme.png",
+    MariBank: "/assets/maribank.webp",
+    Maya: "/assets/maya.png",
+    MetroBank: "/assets/metrobank.png",
+    PNB: "/assets/pnb.png",
+    RCBC: "/assets/rcbc.png",
+    UnionBank: "/assets/unionbank.png",
+  };
+
+const getAccountIcon = (accountName: string | undefined, category?: string) => {
+  if (!accountName) return <MdArrowOutward size={16} className="text-white" />; // fallback
+
+  // Match account name with ICONS key (case-insensitive)
+  const key = Object.keys(ICONS).find((k) =>
+    accountName.toLowerCase().includes(k.toLowerCase())
+  );
+
+  if (key) {
+    return <img src={ICONS[key]} alt={accountName} className="w-6 h-6 rounded-full object-cover" />;
+  }
+
+  // fallback to transaction type icon
+  return getIconAndBg(category as "income" | "expense" | "transfer", category).icon;
+};
 
 const getIconAndBg = (
   type: "income" | "expense" | "transfer",
@@ -248,6 +282,7 @@ const getIconAndBg = (
         {/* Left section (main info) */}
         <div className="flex-1 w-full ">
           <p className="font-semibold text-lg sm:text-2xl">
+            {getAccountIcon(tx.account_name, tx.category)}
             {tx.account_name || tx.name || "Transaction"}
           </p>
           <p className="text-sm text-muted-foreground mb-2">
@@ -289,7 +324,7 @@ const getIconAndBg = (
               : "⇄"}
             ₱{Math.abs(tx.amount).toFixed(2)}
           </p>
-          <div className={`${bg} rounded-full p-2`}>{icon}</div>
+
         </div>
       </div>
     );
