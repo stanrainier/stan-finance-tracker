@@ -10,7 +10,7 @@ import { Divider } from "@heroui/divider";
 import { DatePicker } from "@heroui/date-picker";
 import { useAuth } from "@/hooks/useAuth";
 import { db } from "@/lib/firebase";
-import { CalendarDate, DateValue, getLocalTimeZone } from "@internationalized/date";
+import { DateValue, getLocalTimeZone } from "@internationalized/date";
 import { AiOutlineClose } from "react-icons/ai";
 import {Tooltip} from "@heroui/tooltip";
 
@@ -22,8 +22,9 @@ import {
   Timestamp,
   deleteDoc,
   doc,
-  where,
   limit,
+  startAfter,
+  QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { FaArrowUp, FaExchangeAlt, FaPlus, FaWallet } from "react-icons/fa";
 import { FiArrowDown, FiArrowDownLeft } from "react-icons/fi";
@@ -85,14 +86,13 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [accountOptions, setAccountOptions] = useState<string[]>([]);
+  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot | null>(null);
+  const [hasMore, setHasMore] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState("All");
   const [selectedType, setSelectedType] = useState("All");
   const [selectedDate, setSelectedDate] = useState<DateValue | null>(null);
   const [showFormModal, setShowFormModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [daysLoaded, setDaysLoaded] = useState(2);
-  const [cachedTransactions, setCachedTransactions] = useState<Transaction[]>([]);
-  const [hasFetched, setHasFetched] = useState(false);
 
   const accountTypeIcons: Record<string, JSX.Element> = {
     Bank: <CiBank className="text-xl text-white" />,
@@ -101,67 +101,32 @@ export default function Page() {
     Cash: <IoMdCash className="text-xl text-white" />,
   };
 
-  const fetchTransactions = async (extraDays = 0, customDate?: Date | null, forceRefresh = false) => {
+  const fetchTransactions = async (loadNextPage = false) => {
     if (!user) return;
+    if (loadNextPage && (loadingMore || !hasMore || !lastVisible)) return;
 
-    if (!forceRefresh && hasFetched && cachedTransactions.length > 0 && !customDate && extraDays === 0) {
-      const baseDate = new Date();
-      const oldestDate = new Date(baseDate);
-      oldestDate.setDate(baseDate.getDate() - (daysLoaded - 1));
-      oldestDate.setHours(0, 0, 0, 0);
-      const oldestTimestamp = Timestamp.fromDate(oldestDate);
-
-      const results = cachedTransactions.filter(
-        (t) => t.created_at.toMillis() >= oldestTimestamp.toMillis()
-      );
-
-      const uniqueAccounts = Array.from(new Set(results.map((t) => t.account_name)));
-      setAccountOptions(["All", ...uniqueAccounts]);
-      setTransactions(results);
-      setLoading(false);
-      return;
-    }
-
-    if (extraDays > 0 || customDate) setLoadingMore(true);
+    if (loadNextPage) setLoadingMore(true);
     else setLoading(true);
 
     try {
       const transactionsRef = collection(db, "users", user.uid, "transactions");
-      const q = query(transactionsRef, orderBy("created_at", "desc"), limit(100));
+      const q = loadNextPage
+        ? query(transactionsRef, orderBy("created_at", "desc"), startAfter(lastVisible), limit(100))
+        : query(transactionsRef, orderBy("created_at", "desc"), limit(100));
       const snapshot = await getDocs(q);
-
-      let allResults = snapshot.docs.map((doc) => ({
+      const newResults = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Transaction[];
 
-      setCachedTransactions(allResults);
-      setHasFetched(true);
+      const lastDocument = snapshot.docs[snapshot.docs.length - 1] ?? null;
+      setLastVisible(lastDocument);
+      setHasMore(snapshot.docs.length === 100);
 
-      let results = allResults;
-
-      if (customDate) {
-        const { start, end } = getDayRange(customDate);
-        results = allResults.filter(
-          (t) => t.created_at.toMillis() >= start.toMillis() && t.created_at.toMillis() <= end.toMillis()
-        );
-      } else {
-        const baseDate = new Date();
-        const oldestDate = new Date(baseDate);
-        oldestDate.setDate(baseDate.getDate() - (daysLoaded + extraDays - 1));
-        oldestDate.setHours(0, 0, 0, 0);
-        const oldestTimestamp = Timestamp.fromDate(oldestDate);
-
-        results = allResults.filter(
-          (t) => t.created_at.toMillis() >= oldestTimestamp.toMillis()
-        );
-      }
-
+      const results = loadNextPage ? [...transactions, ...newResults] : newResults;
+      setTransactions(results);
       const uniqueAccounts = Array.from(new Set(results.map((t) => t.account_name)));
       setAccountOptions(["All", ...uniqueAccounts]);
-      setTransactions(results);
-
-      if (!customDate) setDaysLoaded((prev) => prev + extraDays);
 
       setLoading(false);
       setLoadingMore(false);
@@ -176,28 +141,14 @@ export default function Page() {
     if (user) fetchTransactions();
   }, [user]);
 
-  useEffect(() => {
-    if (selectedDate) {
-      const jsDate = selectedDate.toDate(getLocalTimeZone());
-      fetchTransactions(0, jsDate);
-    } else {
-      fetchTransactions();
-    }
-  }, [selectedDate]);
-
   const loadMore = () => {
-    if (!loadingMore && !selectedDate) fetchTransactions(1);
+    if (!loadingMore && !selectedDate && hasMore) fetchTransactions(true);
   };
 
   const handleSuccess = () => {
     setShowFormModal(false);
     setShowTransferModal(false);
-    if (selectedDate) {
-      const jsDate = selectedDate.toDate(getLocalTimeZone());
-      fetchTransactions(0, jsDate, true);
-    } else {
-      fetchTransactions(0, null, true);
-    }
+    fetchTransactions();
   };
 
   const handleDelete = async (id: string) => {
@@ -206,18 +157,19 @@ export default function Page() {
     if (!confirmed) return;
 
     await deleteDoc(doc(db, `users/${user.uid}/transactions/${id}`));
-    if (selectedDate) {
-      const jsDate = selectedDate.toDate(getLocalTimeZone());
-      fetchTransactions(0, jsDate, true);
-    } else {
-      fetchTransactions(0, null, true);
-    }
+    fetchTransactions();
   };
 
+  const selectedDateRange = selectedDate
+    ? getDayRange(selectedDate.toDate(getLocalTimeZone()))
+    : null;
   const filteredTransactions = transactions.filter(
     (txn) =>
       (selectedAccount === "All" || txn.account_name === selectedAccount) &&
-      (selectedType === "All" || txn.type === selectedType)
+      (selectedType === "All" || txn.type === selectedType) &&
+      (!selectedDateRange ||
+        ((txn.date_incurred ?? txn.created_at).toMillis() >= selectedDateRange.start.toMillis() &&
+          (txn.date_incurred ?? txn.created_at).toMillis() <= selectedDateRange.end.toMillis()))
   );
 
   const formatDateKey = (timestamp: Timestamp) => {
@@ -250,7 +202,7 @@ export default function Page() {
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [loadingMore, loading, selectedDate]);
+  }, [loadingMore, loading, selectedDate, hasMore, transactions]);
 
   return (
     <main className="p-4 sm:p-6 space-y-6">
